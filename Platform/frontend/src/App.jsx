@@ -576,6 +576,33 @@ function EsiRecordDetails({ record }) {
   );
 }
 
+function PfRecordDetails({ record }) {
+  const fields = [
+    ["Father name", "father_name"],
+    ["Marital status", "marital_status"],
+    ["Husband/Wife name", "husband_wife_name"],
+    ["Gender", "gender"],
+    ["Mobile", "mobile"],
+    ["Location", "location"],
+    ["PF number", "pf_number"],
+    ["Email", "email"],
+    ["PAN", "pan"],
+  ];
+  return (
+    <details className="esi-record-details">
+      <summary>More details</summary>
+      <div className="esi-detail-grid">
+        {fields.map(([label, key]) => (
+          <div key={key} className="esi-detail-item">
+            <span>{label}</span>
+            <strong>{record[key] === "" || record[key] == null ? "—" : String(record[key])}</strong>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function ScopePicker({
   companies,
   deputedCompanies,
@@ -2465,13 +2492,6 @@ function App() {
                             <th>DOB</th>
                             <th>DOJ</th>
                             <th>Basic Wage</th>
-                            <th>Father Name</th>
-                            <th>Marital Status</th>
-                            <th>Husband/Wife</th>
-                            <th>Gender</th>
-                            <th>Mobile</th>
-                            <th>Location</th>
-                            <th>PF No</th>
                           </>
                         )}
                         <th>Status</th>
@@ -2528,13 +2548,6 @@ function App() {
                               <td className={item.missing_required_fields?.includes("dob") ? "missing-cell" : ""}>{formatSourceDate(item.dob)}</td>
                               <td className={item.missing_required_fields?.includes("doj") ? "missing-cell" : ""}>{formatSourceDate(item.doj)}</td>
                               <td className={item.missing_required_fields?.includes("basic_wage") ? "missing-cell" : ""}>{item.basic_wage === "" || item.basic_wage == null ? "—" : item.basic_wage}</td>
-                              <td>{item.father_name || "—"}</td>
-                              <td>{item.marital_status || "—"}</td>
-                              <td>{item.husband_wife_name || item.spouse_name || "—"}</td>
-                              <td>{item.gender || "—"}</td>
-                              <td>{item.mobile || "—"}</td>
-                              <td>{item.location || "—"}</td>
-                              <td>{item.pf_number || "—"}</td>
                             </>
                           )}
                           <td>
@@ -2565,7 +2578,7 @@ function App() {
                           </td>
                           <td>
                             <div className="record-actions">
-                              {isEsi && <EsiRecordDetails record={item} />}
+                              {isEsi ? <EsiRecordDetails record={item} /> : <PfRecordDetails record={item} />}
                               <Button
                                 type="button"
                                 variant="ghost"
