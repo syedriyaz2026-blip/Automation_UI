@@ -934,8 +934,7 @@ def create_ui_session(account: dict[str, Any]) -> str:
 def authenticate_ui_user(username: str, password: str) -> dict[str, Any] | None:
     account = USER_STORE.authenticate(username, password)
     if account:
-        # PF is operated by one Master Admin account only.
-        return account if account.get("role") == ROLE_MASTER_ADMIN else None
+        return account
     # Environment credentials remain supported for deployment, but receive
     # the explicitly configured role and never bypass the account store.
     configured_username = os.getenv("EPFO_UI_USER", "")
@@ -945,11 +944,11 @@ def authenticate_ui_user(username: str, password: str) -> dict[str, Any] | None:
             "id": "environment-account",
             "username": username,
             "display_name": username,
-            "role": ROLE_MASTER_ADMIN,
+            "role": os.getenv("EPFO_UI_ROLE", ROLE_ADMIN),
             "active": True,
             "company_ids": [item.strip() for item in os.getenv("EPFO_UI_COMPANIES", "*").split(",") if item.strip()],
-            "permissions": default_permissions(ROLE_MASTER_ADMIN),
-            "module_access": default_module_access(ROLE_MASTER_ADMIN),
+            "permissions": default_permissions(os.getenv("EPFO_UI_ROLE", ROLE_ADMIN)),
+            "module_access": default_module_access(os.getenv("EPFO_UI_ROLE", ROLE_ADMIN)),
         }
     return None
 
