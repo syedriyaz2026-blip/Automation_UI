@@ -223,6 +223,7 @@ class ReadOnlyDatabase:
             connection_string
             or os.getenv("PF_READONLY_DB_CONNECTION", "")
             or os.getenv("PF_SOURCE_DB_CONNECTION", "")
+            or os.getenv("EMANAGE_READONLY_DB_CONNECTION", "")
         )
 
     @property
@@ -806,28 +807,38 @@ class CompleteEmployeeDataService:
 
     def companies(self) -> dict[str, Any]:
         warnings: list[str] = []
+        # The supplied Emanage portal uses the same SQL company master that
+        # scopes employee data. Prefer it so the selector and queue cannot
+        # disagree; the HTTP API remains a fallback for deployments without
+        # direct read-only database access.
+        if self.database.configured:
+            try:
+                items = self.database.companies()
+                return {"companies": items, "source": "sql_server_read_only.dbo.im_companydetails", "read_only": True, "warnings": warnings}
+            except SourceDataError as exc:
+                warnings.append(str(exc))
         if self.api.configured:
             try:
                 items = self.api.companies()
                 return {"companies": items, "source": "emanage_api.Company/GetCompanyList", "read_only": True, "warnings": warnings}
             except SourceDataError as exc:
                 warnings.append(str(exc))
-        if self.database.configured:
-            items = self.database.companies()
-            return {"companies": items, "source": "sql_server_read_only.dbo.im_companydetails", "read_only": True, "warnings": warnings}
         raise SourceDataError("No company source is configured.")
 
     def deputed_companies(self, company_id: int) -> dict[str, Any]:
         warnings: list[str] = []
+        if self.database.configured:
+            try:
+                items = self.database.deputed_companies(company_id)
+                return {"company_id": str(company_id), "deputed_companies": items, "source": "sql_server_read_only.dbo.Api_DeputedCompanylist_scope_query", "read_only": True, "warnings": warnings}
+            except SourceDataError as exc:
+                warnings.append(str(exc))
         if self.api.configured:
             try:
                 items = self.api.deputed_companies(company_id)
                 return {"company_id": str(company_id), "deputed_companies": items, "source": "emanage_api.Company/GetDeputedCompanyList", "read_only": True, "warnings": warnings}
             except SourceDataError as exc:
                 warnings.append(str(exc))
-        if self.database.configured:
-            items = self.database.deputed_companies(company_id)
-            return {"company_id": str(company_id), "deputed_companies": items, "source": "sql_server_read_only.dbo.Api_DeputedCompanylist_scope_query", "read_only": True, "warnings": warnings}
         raise SourceDataError("No deputed-company source is configured.")
 
     def complete(
