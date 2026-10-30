@@ -1392,10 +1392,6 @@ function App() {
     }
   }
   async function syncSourceData() {
-    if (role === "user") {
-      setNotice("API intake is available to Admin and Super Admin accounts only.");
-      return;
-    }
     // PF and ESI intake is API-only and automatic for the selected scope.
     if (!companyId || !deputedCompanyId) {
       setNotice("Select both Company and Deputed Company before fetching API data.");
@@ -2422,7 +2418,7 @@ function App() {
                       acceptance.
                     </p>
                   </div>
-                  <Button variant="ghost" onClick={() => loadQueue()}>
+                  <Button variant="ghost" onClick={syncSourceData} disabled={apiSyncLoading || !companyId || !deputedCompanyId}>
                     <RefreshCw size={16} /> Refresh
                   </Button>
                 </div>
