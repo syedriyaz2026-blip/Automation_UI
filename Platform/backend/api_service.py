@@ -2286,7 +2286,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not self._require_module("PF"):
                     return
                 company_id = path.split("/")[4]
-                if not self._require_access(roles=(ROLE_MASTER_ADMIN, ROLE_SUPER_ADMIN, ROLE_ADMIN), permissions=("intake.api",), company_id=company_id):
+                # Source synchronization is read-only display intake. It is
+                # separate from starting PF automation and is available to
+                # authorized PF users as well as administrators.
+                if not self._require_access(roles=(ROLE_MASTER_ADMIN, ROLE_SUPER_ADMIN, ROLE_ADMIN, ROLE_USER), permissions=("intake.api",), company_id=company_id):
                     return
                 source_company_id = _as_source_id(company_id)
                 if source_company_id is None:

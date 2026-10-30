@@ -67,6 +67,7 @@ ROLE_DEFAULT_PERMISSIONS = {
     },
     ROLE_USER: {
         "companies.view",
+        "intake.api",
         "intake.excel",
         "intake.settings.view",
         "employee_queue.view",
