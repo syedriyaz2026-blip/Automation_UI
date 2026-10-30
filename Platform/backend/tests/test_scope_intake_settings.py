@@ -9,7 +9,7 @@ def test_intake_settings_are_isolated_by_company_and_deputed_scope(tmp_path, mon
 
     default = scope_intake_settings.get("company-a", "deputed-a")
     assert default["api_enabled"] is True
-    assert default["excel_enabled"] is True
+    assert default["excel_enabled"] is False
 
     saved = scope_intake_settings.save(
         "company-a",
@@ -19,15 +19,15 @@ def test_intake_settings_are_isolated_by_company_and_deputed_scope(tmp_path, mon
         updated_by="admin",
     )
     assert saved["api_enabled"] is False
-    assert saved["excel_enabled"] is True
+    assert saved["excel_enabled"] is False
     assert saved["updated_by"] == "admin"
 
     untouched_deputed_scope = scope_intake_settings.get("company-a", "deputed-b")
     untouched_company_scope = scope_intake_settings.get("company-b", "deputed-a")
     assert untouched_deputed_scope["api_enabled"] is True
-    assert untouched_deputed_scope["excel_enabled"] is True
+    assert untouched_deputed_scope["excel_enabled"] is False
     assert untouched_company_scope["api_enabled"] is True
-    assert untouched_company_scope["excel_enabled"] is True
+    assert untouched_company_scope["excel_enabled"] is False
 
     assert scope_intake_settings.list_for_companies({"company-a"}) == [saved]
     assert scope_intake_settings.list_for_companies({"company-b"}) == []

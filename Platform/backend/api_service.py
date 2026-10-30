@@ -1213,6 +1213,15 @@ class Handler(BaseHTTPRequestHandler):
         return False
 
     def _require_intake_module(self, company_id: str, deputed_company_id: str, module: str) -> bool:
+        if module == "excel":
+            self._json(
+                error_response(
+                    "EXCEL_INTAKE_DISABLED",
+                    "Excel intake is disabled. PF and ESI records must arrive through the API.",
+                ),
+                403,
+            )
+            return False
         try:
             settings = get_intake_settings(company_id, deputed_company_id)
         except ValueError as exc:

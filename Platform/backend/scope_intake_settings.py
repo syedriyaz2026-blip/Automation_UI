@@ -44,7 +44,7 @@ def _connect() -> sqlite3.Connection:
             company_id TEXT NOT NULL,
             deputed_company_id TEXT NOT NULL,
             api_enabled INTEGER NOT NULL DEFAULT 1,
-            excel_enabled INTEGER NOT NULL DEFAULT 1,
+            excel_enabled INTEGER NOT NULL DEFAULT 0,
             updated_at TEXT NOT NULL,
             updated_by TEXT NOT NULL,
             PRIMARY KEY (company_id, deputed_company_id)
@@ -60,7 +60,7 @@ def _public(row: sqlite3.Row | dict[str, Any], company_id: str, deputed_company_
         "company_id": company_id,
         "deputed_company_id": deputed_company_id,
         "api_enabled": bool(row["api_enabled"] if isinstance(row, sqlite3.Row) else row.get("api_enabled", 1)),
-        "excel_enabled": bool(row["excel_enabled"] if isinstance(row, sqlite3.Row) else row.get("excel_enabled", 1)),
+        "excel_enabled": False,
         "updated_at": row["updated_at"] if isinstance(row, sqlite3.Row) else row.get("updated_at", ""),
         "updated_by": row["updated_by"] if isinstance(row, sqlite3.Row) else row.get("updated_by", ""),
         "storage": "sqlite",
@@ -81,7 +81,7 @@ def get(company_id: Any, deputed_company_id: Any) -> dict[str, Any]:
                     "company_id": company,
                     "deputed_company_id": deputed,
                     "api_enabled": True,
-                    "excel_enabled": True,
+                    "excel_enabled": False,
                     "updated_at": "",
                     "updated_by": "default",
                     "storage": "sqlite",
@@ -108,7 +108,7 @@ def save(company_id: Any, deputed_company_id: Any, *, api_enabled: bool, excel_e
                     updated_at = excluded.updated_at,
                     updated_by = excluded.updated_by
                 """,
-                (company, deputed, int(bool(api_enabled)), int(bool(excel_enabled)), timestamp, str(updated_by or "system")),
+                (company, deputed, int(bool(api_enabled)), 0, timestamp, str(updated_by or "system")),
             )
             connection.commit()
             return get(company, deputed)

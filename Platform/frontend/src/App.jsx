@@ -48,7 +48,7 @@ const DEFAULT_DUMMY_CREDENTIALS = {
 };
 const DEFAULT_INTAKE_SETTINGS = {
   api_enabled: true,
-  excel_enabled: true,
+  excel_enabled: false,
   updated_at: "",
   updated_by: "default",
 };
@@ -254,14 +254,14 @@ function ScopedIntakeSettingsPanel({ role, permissions = [] }) {
 
   return (
     <section className="admin-panel intake-settings-panel">
-      <div className="admin-panel-heading"><div><h2>Data intake controls</h2><p>API and Excel are independent for every Company + Deputed Company pair.</p></div><Upload size={20} /></div>
+      <div className="admin-panel-heading"><div><h2>Data intake controls</h2><p>PF and ESI use API-only intake for every Company + Deputed Company pair.</p></div><Upload size={20} /></div>
       <div className="admin-scope-fields">
         <label>Company<select value={companyId} onChange={(event) => chooseCompany(event.target.value)}><option value="">Select company</option>{companies.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         <label>Deputed Company<select value={deputedCompanyId} onChange={(event) => chooseDeputed(event.target.value)} disabled={!companyId}><option value="">Select deputed company</option>{deputedCompanies.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       </div>
       <div className="intake-setting-toggles">
         <button type="button" className={"intake-setting-toggle " + (settings.api_enabled ? "enabled" : "disabled")} disabled={!canModify || !deputedCompanyId} onClick={() => setSettings((current) => ({ ...current, api_enabled: !current.api_enabled }))}><span><strong>API intake</strong><small>Source API data retrieval and API submission</small></span><Status tone={settings.api_enabled ? "green" : "red"}>{settings.api_enabled ? "Enabled" : "Disabled"}</Status></button>
-        <button type="button" className={"intake-setting-toggle " + (settings.excel_enabled ? "enabled" : "disabled")} disabled={!canModify || !deputedCompanyId} onClick={() => setSettings((current) => ({ ...current, excel_enabled: !current.excel_enabled }))}><span><strong>Excel upload</strong><small>Workbook validation and upload</small></span><Status tone={settings.excel_enabled ? "green" : "red"}>{settings.excel_enabled ? "Enabled" : "Disabled"}</Status></button>
+        <div className="intake-setting-toggle disabled"><span><strong>Excel upload</strong><small>Disabled. PF and ESI accept records through API only.</small></span><Status tone="red">Disabled</Status></div>
       </div>
       {canModify ? <Button type="button" onClick={save} disabled={!deputedCompanyId}>Save intake settings</Button> : <small className="helper">User accounts can view the scope settings but cannot change them.</small>}
       {status && <small className="helper">{status}</small>}
@@ -1627,8 +1627,8 @@ function App() {
           <h2>Bring in employee data</h2>
           <p>
             {isEsi
-              ? "Use API ingestion or upload an Excel workbook. ESI registration fields are normalized and validated before they enter the scoped queue."
-              : "Use API ingestion or upload an Excel workbook. Valid records are queued automatically. Only employees whose DOJ falls within the latest 48 hours are included."}
+              ? "ESI employee records arrive through the API, then are normalized and validated before entering the scoped queue."
+              : "PF employee records arrive through the API, are validated, and are queued automatically. Only employees whose DOJ falls within the latest 48 hours are included."}
           </p>
         </div>
         <Upload size={19} className="panel-icon" />
@@ -1637,53 +1637,12 @@ function App() {
          <div className="intake-source-card">
           <div className="intake-source-heading">
                <div>
-                 <strong>Excel upload <Status tone={intakeSettings.excel_enabled ? "green" : "red"}>{intakeSettings.excel_enabled ? "Enabled" : "Disabled"}</Status></strong>
-                 <span>{isEsi ? "Use the ESI registration template. Every required field must be present and valid." : "Choose the complete format or the six mandatory fields."}</span>
+               <strong>API-only intake <Status tone="green">Enabled</Status></strong>
+                 <span>Excel upload is disabled. Records must arrive from the configured API source.</span>
                 </div>
-               <a href={isEsi ? "/api/v1/esi/template" : "/api/v1/template"} className="template-link" download>
-                 Sample template
-               </a>
+             <span className="template-link secondary">API source only</span>
              </div>
-             <div className="intake-actions">
-            <label className={"upload-control " + (!intakeSettings.excel_enabled ? "disabled" : "")} aria-disabled={!intakeSettings.excel_enabled}>
-              <Upload size={15} /> Choose workbook
-              <input
-                id="workbook-upload"
-                name="workbook"
-                type="file"
-                accept=".xlsx,.xlsm"
-                disabled={!intakeSettings.excel_enabled}
-                  onChange={(event) => {
-                    setUploadFile(event.target.files?.[0] || null);
-                    setUploadErrors([]);
-                   setUploadValidated(false);
-                   setUploadValidation(null);
-                  }}
-              />
-            </label>
-            {uploadFile && (
-              <span className="selected-file">{uploadFile.name}</span>
-            )}
-            <Button
-              variant="ghost"
-               onClick={validateWorkbook}
-               disabled={!intakeSettings.excel_enabled || !uploadFile || uploadValidationLoading || loading}
-            >
-               {uploadValidationLoading ? "Validating…" : "Validate upload"}
-             </Button>
-             <Button
-               onClick={uploadWorkbook}
-               disabled={!intakeSettings.excel_enabled || !uploadFile || !uploadValidated || loading || uploadValidationLoading}
-             >
-               Upload
-            </Button>
-          </div>
-           {uploadValidated && uploadValidation && (
-             <div className="upload-validation-success" role="status">
-               <CheckCircle2 size={15} />
-               Workbook validated · {uploadValidation.valid || 0} of {uploadValidation.total || 0} rows ready to upload.
-             </div>
-           )}
+             <div className="intake-actions"><span>Use “Fetch latest API data” to retrieve records for this scope.</span></div>
         </div>
           {can("intake.api") && <div className={"intake-source-card api-intake-card " + (!intakeSettings.api_enabled ? "intake-disabled" : "")}>
            <div className="intake-source-heading">
@@ -1937,15 +1896,7 @@ function App() {
                       <span><strong>API intake</strong><small>Read and validate source API records.</small></span>
                       <Status tone={intakeSettings.api_enabled ? "green" : "red"}>{intakeSettings.api_enabled ? "Enabled" : "Disabled"}</Status>
                     </button>
-                    <button
-                      type="button"
-                      className={"scope-intake-toggle " + (intakeSettings.excel_enabled ? "enabled" : "disabled")}
-                      disabled={!can("intake.settings.manage") || !deputedCompanyId}
-                      onClick={() => setIntakeSettings((current) => ({ ...current, excel_enabled: !current.excel_enabled }))}
-                    >
-                      <span><strong>Excel upload</strong><small>Validate and queue workbook rows.</small></span>
-                      <Status tone={intakeSettings.excel_enabled ? "green" : "red"}>{intakeSettings.excel_enabled ? "Enabled" : "Disabled"}</Status>
-                    </button>
+                    <div className="scope-intake-toggle enabled"><span><strong>Excel upload</strong><small>Disabled. PF and ESI accept records through API only.</small></span><Status tone="red">Disabled</Status></div>
                   </div>
                   {can("intake.settings.manage") ? (
                     <Button type="button" variant="ghost" onClick={saveIntakeSettings} disabled={!deputedCompanyId || intakeSettingsSaving}>
@@ -2254,10 +2205,10 @@ function App() {
             type="button"
             className={"nav-item nav-button " + (uploadOpen ? "active" : "")}
             onClick={() => setUploadOpen(true)}
-            title={role === "user" ? "Excel upload" : "Upload and API intake"}
+            title="API intake"
           >
             <Upload size={18} />
-            <span className="nav-text">{role === "user" ? "Excel upload" : "Upload / API intake"}</span>
+            <span className="nav-text">API intake</span>
           </button>
           <button
             type="button"
@@ -2384,7 +2335,7 @@ function App() {
             <div className="page-view">
               <div className="page-view-heading page-view-heading-with-scope">
                 <div>
-                  <h1>Upload / API intake</h1>
+                  <h1>API intake</h1>
                    <p>Bring in employee data for the selected company and deputed company scope.</p>
                 </div>
                 <div className="scope-context">

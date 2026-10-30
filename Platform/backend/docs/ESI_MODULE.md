@@ -5,7 +5,7 @@ The ESI module is isolated from the existing PF inbox and worker. Every row is s
 ## Intake lifecycle
 
 1. Select the ESI module, Company, and Deputed Company.
-2. Choose either Excel upload or API intake. The existing per-scope intake switches apply independently to ESI.
+2. Use API intake only. Excel upload is disabled for ESI.
 3. Normalize source aliases and dates to `DD-MM-YYYY`.
 4. Validate every required ESI registration field, row format, identifiers, pincode, bank account, IFSC, and optional PAN/mobile formats.
 5. Keep invalid source-sync rows visible as `ESI_VALIDATION_FAILED`; workbook/API intake rejects invalid payloads before storage.
