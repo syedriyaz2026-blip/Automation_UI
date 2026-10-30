@@ -112,6 +112,16 @@ class EsiPortalWorkflow:
         selector = self._selector(key)
         self.page.locator(selector).first.click()
 
+    def _fill_optional(self, key: str, value: Any) -> None:
+        selector = self._selector(key, required=False)
+        if selector and value not in (None, ""):
+            self.page.locator(selector).first.fill(str(value))
+
+    def _upload_optional(self, key: str, value: Any) -> None:
+        selector = self._selector(key, required=False)
+        if selector and value:
+            self.page.locator(selector).first.set_input_files(str(value))
+
     def _screenshot(self, record_id: str, stage: str) -> str:
         safe = "".join(char if char.isalnum() or char in "-_" else "_" for char in str(record_id))
         stage_name = "".join(char if char.isalnum() or char in "-_" else "_" for char in stage)
@@ -160,8 +170,12 @@ class EsiPortalWorkflow:
             self._stage(result, "Duplicate Check")
             self._click("new_employee")
             self._stage(result, "Identity Details")
-            for field in ("employee_code", "name", "dob", "gender", "aadhaar", "father_name", "marital_status"):
+            for field in ("employee_code", "name", "dob", "gender", "doj", "aadhaar", "mobile", "father_name", "marital_status"):
                 self._fill(field, record.get(field, ""))
+            self._fill_optional("job_location", record.get("job_location", ""))
+            self._fill_optional("esic_sub_code", record.get("esic_sub_code", ""))
+            self._upload_optional("employee_photo", record.get("employee_photo", ""))
+            self._upload_optional("identity_document", record.get("identity_document_path", ""))
             self._click("identity_next")
 
             self._stage(result, "Address Details")

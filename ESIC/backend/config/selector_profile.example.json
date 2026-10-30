@@ -37,5 +37,9 @@
   "nominee_pincode": "",
   "bank_account": "",
   "bank_ifsc": "",
-  "bank_account_type": ""
+  "bank_account_type": "",
+  "job_location": "",
+  "esic_sub_code": "",
+  "employee_photo": "",
+  "identity_document": ""
 }
