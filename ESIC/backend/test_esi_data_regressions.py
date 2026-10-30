@@ -46,3 +46,12 @@ def test_invalid_source_row_number_does_not_leak_into_valid_rows():
     result = validate_esi_records([invalid])
     assert result["invalid"] == 1
     assert result["valid_rows"] == []
+
+
+def test_archive_source_record_does_not_require_portal_action_fields():
+    row = _valid_record()
+    row.pop("Bank Account Type")
+    row.pop("Consent")
+    result = validate_esi_records([row])
+    assert result["invalid"] == 0
+    assert result["valid"] == 1

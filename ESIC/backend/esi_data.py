@@ -51,6 +51,11 @@ ESI_FIELDS = [
     "consent",
 ]
 
+# These are portal-side actions/defaults rather than fields supplied by the
+# archive's empData.json. They remain part of ESI_FIELDS for display and
+# workflow mapping, but are not source-intake blockers.
+ESI_PORTAL_ACTION_FIELDS = ["bank_account_type", "consent"]
+
 ESI_REQUIRED_FIELDS = [
     "employee_code",
     "name",
@@ -83,8 +88,6 @@ ESI_REQUIRED_FIELDS = [
     "family_dispensary_name",
     "bank_account",
     "bank_ifsc",
-    "bank_account_type",
-    "consent",
 ]
 
 # These fields are present in the supplied ESIC employee contract and are

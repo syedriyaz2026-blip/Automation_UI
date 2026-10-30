@@ -192,8 +192,9 @@ class EsiPortalWorkflow:
             self._click("nominee_next")
 
             self._stage(result, "Bank Details")
-            for field in ("bank_account", "bank_ifsc", "bank_account_type"):
+            for field in ("bank_account", "bank_ifsc"):
                 self._fill(field, record.get(field, ""))
+            self._fill_optional("bank_account_type", record.get("bank_account_type", ""))
             self._click("bank_next")
 
             self._stage(result, "Consent and Submission")
