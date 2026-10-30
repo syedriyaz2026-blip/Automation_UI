@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,53 @@ def test_api_blocks_invalid_rows_before_browser_submission():
     assert failures[0]["status"] == "Validation Failed"
     assert "Input Data Validation" == failures[0]["error_type"]
     assert "Aadhaar" in failures[0]["message"]
+
+
+def test_datacore_registration_uses_portal_aadhaar_verification_at_every_queue_gate(tmp_path, monkeypatch):
+    monkeypatch.setattr(platform_backend, "INBOX_ROOT", tmp_path / "inbox")
+    monkeypatch.setattr(platform_backend, "AUDIT_LOG_PATH", tmp_path / "audit.jsonl")
+    platform = platform_backend.CompanyPlatform()
+    employee = {
+        "UAN No": "100000000001",
+        "Aadhar Number": "234567890123",
+        "Name": "Test Employee",
+        "DOB": "19/09/1997",
+        "DOJ": "26/10/2026",
+        "Basic Wage": "15000",
+        "Company": "Datacore Technologies Pvt Ltd.",
+    }
+
+    assert platform.validate_raw("alp_datacore", [employee], "alp_datacore")["valid"] == 1
+    assert platform.validate_mandatory_raw("alp_datacore", [employee], "alp_datacore")["valid"] == 1
+    platform.ingest("alp_datacore", [employee], source="test", deputed_company_id="alp_datacore")
+    assert platform.validate("alp_datacore", deputed_company_id="alp_datacore")["valid"] == 1
+    assert platform.validate_raw("alp_consulting", [employee], "alp_consulting")["invalid"] == 1
+
+
+def test_registration_json_upload_uses_selected_local_company_scope():
+    employee = {"UAN No": "100000000001", "Aadhar Number": "234567890123", "Name": "Test Employee", "DOB": "19/09/1997", "DOJ": "26/10/2026", "Basic Wage": "15000", "Company": "Datacore Technologies Pvt Ltd."}
+    document = json.dumps({"company_id": "alp_datacore", "employees": [employee]}).encode()
+    boundary = "registration-test-boundary"
+    body = (
+        f"--{boundary}\r\nContent-Disposition: form-data; name=\"company_id\"\r\n\r\nalp_datacore\r\n".encode()
+        + f"--{boundary}\r\nContent-Disposition: form-data; name=\"deputed_company_id\"\r\n\r\nalp_datacore\r\n".encode()
+        + f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"member_registration.json\"\r\nContent-Type: application/json\r\n\r\n".encode()
+        + document + f"\r\n--{boundary}--\r\n".encode()
+    )
+    handler = object.__new__(api_service.Handler)
+    handler.path = "/api/v1/companies/alp_datacore/validate-upload"
+    handler.headers = {"Content-Type": f"multipart/form-data; boundary={boundary}", "Content-Length": str(len(body))}
+    handler.rfile = BytesIO(body)
+
+    parsed = handler._multipart_run_body()
+
+    assert parsed["records"] == [employee]
+    assert parsed["company_id"] == "alp_datacore"
+    assert parsed["deputed_company_id"] == "alp_datacore"
+    handler.path = "/api/v1/companies/alp_consulting/validate-upload"
+    handler.rfile = BytesIO(body)
+    with pytest.raises(ValueError, match="matching the JSON file"):
+        handler._multipart_run_body()
 
 
 def test_api_detects_duplicate_uan_and_aadhaar():
@@ -90,6 +138,30 @@ def test_signin_only_run_authenticates_without_submitting_records(tmp_path, monk
     assert finished["total"] == finished["completed"] == 0
     assert finished["results"] == []
     assert not any(event["event"] == "ROW_STARTED" for event in finished["events"])
+
+
+def test_datacore_record_reaches_pending_approval_in_full_mock_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(platform_backend, "INBOX_ROOT", tmp_path / "inbox")
+    monkeypatch.setattr(platform_backend, "AUDIT_LOG_PATH", tmp_path / "audit.jsonl")
+    monkeypatch.setattr(api_service, "RUN_ROOT", tmp_path / "runs")
+    platform = platform_backend.CompanyPlatform()
+    store = api_service.RunStore()
+    monkeypatch.setattr(api_service, "PLATFORM", platform)
+    monkeypatch.setattr(api_service, "STORE", store)
+    monkeypatch.setattr(api_service, "resolve_credentials", lambda *_args, **_kwargs: ("TEST_EMPLOYER", "TEST_PASSWORD"))
+    monkeypatch.setattr(api_service.EpfoBot, "capture_evidence", lambda self, *_args: "")
+    employee = {"UAN No": "100000000001", "Aadhar Number": "234567890123", "Name": "Test Employee", "DOB": "19/09/1997", "DOJ": "26/10/2026", "Basic Wage": "15000", "Company": "Datacore Technologies Pvt Ltd."}
+    assert platform.validate_raw("alp_datacore", [employee], "alp_datacore")["valid"] == 1
+    platform.ingest("alp_datacore", [employee], source="test", deputed_company_id="alp_datacore")
+    record = platform.records("alp_datacore", deputed_company_id="alp_datacore")[0]
+    assert platform.validate("alp_datacore", deputed_company_id="alp_datacore")["valid"] == 1
+    run = store.create([record], {"mode": "MOCK", "company_id": "alp_datacore", "deputed_company_id": "alp_datacore", "headless": True, "demo_delay_ms": 0, "typing_delay_ms": 0})
+
+    api_service.run_worker(run["run_id"], "", "")
+
+    assert store.get(run["run_id"])["status"] == "COMPLETED"
+    assert store.get(run["run_id"])["results"][0]["status"] == "Registered - Pending Approval"
+    assert platform.records("alp_datacore", deputed_company_id="alp_datacore")[0]["status"] == "Registered - Pending Approval"
 
 
 def test_run_store_persists_audit_and_error_artifacts(tmp_path, monkeypatch):

@@ -1332,7 +1332,7 @@ function App() {
       return;
     }
     if (!uploadFile || !companyId || !deputedCompanyId) {
-      setNotice("Select both Company and Deputed Company, then choose an .xlsx or .xlsm file.");
+      setNotice("Select both Company and Deputed Company, then choose an Excel or PF registration JSON file.");
       return;
     }
     setUploadValidationLoading(true);
@@ -1352,7 +1352,7 @@ function App() {
       setUploadValidation(result);
       setUploadValidated(Boolean(result.validated));
       setNotice(
-        "Workbook validated: " +
+        "File validated: " +
           (result.valid || 0) +
           " of " +
           (result.total || 0) +
@@ -1370,13 +1370,13 @@ function App() {
   }
   async function uploadWorkbook() {
     if (!intakeSettings.excel_enabled)
-      return setNotice("Excel upload is disabled for the selected Company and Deputed Company scope.");
+      return setNotice("File upload is disabled for the selected Company and Deputed Company scope.");
     if (!uploadFile || !companyId || !deputedCompanyId)
       return setNotice(
-        "Select both Company and Deputed Company, then choose an .xlsx or .xlsm file.",
+        "Select both Company and Deputed Company, then choose an Excel or PF registration JSON file.",
       );
     if (!uploadValidated)
-      return setNotice("Validate the workbook successfully before uploading it.");
+      return setNotice("Validate the file successfully before uploading it.");
     setLoading(true);
     try {
       const body = new FormData();
@@ -1655,8 +1655,8 @@ function App() {
          <div className="intake-source-card">
           <div className="intake-source-heading">
                <div>
-                 <strong>Excel upload <Status tone={intakeSettings.excel_enabled ? "green" : "red"}>{intakeSettings.excel_enabled ? "Enabled" : "Disabled"}</Status></strong>
-                 <span>{isEsi ? "Use the ESI registration template. Every required field must be present and valid." : "Choose the complete format or the six mandatory fields."}</span>
+               <strong>{isEsi ? "Excel upload" : "Excel / JSON upload"} <Status tone={intakeSettings.excel_enabled ? "green" : "red"}>{intakeSettings.excel_enabled ? "Enabled" : "Disabled"}</Status></strong>
+                 <span>{isEsi ? "Use the ESI registration template. Every required field must be present and valid." : "Choose an Excel template or a one-member registration JSON file. Validate it before upload; upload starts the full PF workflow when credentials are configured."}</span>
                 </div>
                <a href={isEsi ? "/api/v1/esi/template" : "/api/v1/template"} className="template-link" download>
                  Sample template
@@ -1664,12 +1664,12 @@ function App() {
              </div>
              <div className="intake-actions">
             <label className={"upload-control " + (!intakeSettings.excel_enabled ? "disabled" : "")} aria-disabled={!intakeSettings.excel_enabled}>
-              <Upload size={15} /> Choose workbook
+              <Upload size={15} /> Choose file
               <input
                 id="workbook-upload"
                 name="workbook"
                 type="file"
-                accept=".xlsx,.xlsm"
+                accept={isEsi ? ".xlsx,.xlsm" : ".xlsx,.xlsm,.json"}
                 disabled={!intakeSettings.excel_enabled}
                   onChange={(event) => {
                     setUploadFile(event.target.files?.[0] || null);
@@ -1699,7 +1699,7 @@ function App() {
            {uploadValidated && uploadValidation && (
              <div className="upload-validation-success" role="status">
                <CheckCircle2 size={15} />
-               Workbook validated · {uploadValidation.valid || 0} of {uploadValidation.total || 0} rows ready to upload.
+               File validated · {uploadValidation.valid || 0} of {uploadValidation.total || 0} rows ready to upload.
              </div>
            )}
         </div>

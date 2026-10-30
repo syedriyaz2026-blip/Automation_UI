@@ -2,7 +2,7 @@
 
 The application architecture and corrected operating flow are documented in ARCHITECTURE.md. The user-provided reference video and extracted frames are isolated under reference/video/ and are not loaded by the runtime.
 
-This tool automates the EPFO employer-portal **registration only** workflow. The primary integration is a local API consumed by the React portal: employee records arrive through API or Excel intake, are normalized and validated before submission, and are processed sequentially. The older Excel/Tkinter launcher remains available as a compatibility path while existing workbook users migrate.
+This tool automates the EPFO employer-portal **registration only** workflow. The primary integration is a local API consumed by the React portal: employee records arrive through API, Excel, or a one-member registration JSON file, are normalized and validated before submission, and are processed sequentially. The older Excel/Tkinter launcher remains available as a compatibility path while existing workbook users migrate.
 
 ## New local desktop-style UI
 
@@ -37,6 +37,7 @@ Open the React frontend at `http://127.0.0.1:5201`; the backend API listens at `
 - `GET /api/v1/auth/me` and `POST /api/v1/auth/logout` — inspect or clear the current JWT session.
 - `POST /api/v1/runs` — accepts a confirmed REAL run with selected inbox records and starts sequential processing. MOCK is limited to the private test harness.
 - `POST /api/v1/companies/{company_id}/test-signin` — tests the saved credentials, CAPTCHA entry, and Sign In for a selected local company scope without submitting any employee record.
+- `POST /api/v1/companies/{company_id}/validate-upload` and `/upload` — accept Excel or the single-employee `{"company_id":"...","employees":[{...}]}` JSON used by `register_member.py`. Select the matching configured company and deputed company in the UI. Validate first; Upload adds the record to the inbox and starts the complete REAL registration run when scoped credentials are configured.
 - `GET /api/v1/runs/{run_id}` — returns authentication state, row progress, results, errors, and event history.
 - `POST /api/v1/runs/{run_id}/stop` — stops at the next safe row boundary.
 - `POST /api/v1/runs/{run_id}/continue` — requests an immediate authentication-state check.
@@ -45,7 +46,7 @@ Open the React frontend at `http://127.0.0.1:5201`; the backend API listens at `
 
 Errors use the stable shape `{ "error": { "code": "VALIDATION_ERROR", "message": "...", "details": [] } }` so clients can display a useful message without parsing free-form text. Run requests reject unknown fields and are limited by `config/settings.json:max_batch_records` before browser startup.
 
-The portal requires a local application login. Set `EPFO_UI_USER`, `EPFO_UI_PASSWORD`, and `EPFO_JWT_SECRET` before a real local deployment; the seeded local accounts are for first-run development only and can be managed by Super Admin. After login, select a company/deputed-company scope, choose API or Excel intake, review normalized records, validate them, and use **Start insertion** only after every selected row is valid. Company mappings are maintained in `config/company_configs.json`, so a source API may provide extra fields without changing the EPFO insertion workflow.
+The portal requires a local application login. Set `EPFO_UI_USER`, `EPFO_UI_PASSWORD`, and `EPFO_JWT_SECRET` before a real local deployment; the seeded local accounts are for first-run development only and can be managed by Super Admin. After login, select a company/deputed-company scope and choose the intake source. For a registration JSON file, validate it and click **Upload** to start the full PF registration workflow. Company mappings are maintained in `config/company_configs.json`, so a source API may provide extra fields without changing the EPFO insertion workflow.
 
 Local deployment uses the local API plus SQLite for portal-management users, scoped intake switches, and encrypted credential records. Inbox data is stored under `api_inbox/`, run state under `api_runs/`, and screenshot/evidence blobs under `blob_storage/`. No Azure Blob, S3, or remote write service is contacted. The source company/employee database remains read-only.
 

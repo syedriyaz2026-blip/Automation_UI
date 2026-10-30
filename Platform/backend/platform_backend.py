@@ -479,7 +479,7 @@ class CompanyPlatform:
         duplicate_map = duplicate_errors(normalized)
         results = []
         for row in normalized:
-            errors = validate_record_all(row)
+            errors = validate_record_all(row, check_aadhaar_checksum=self.config(company_id).get("aadhaar_checksum_mode", "local") != "portal")
             if row["row_number"] in duplicate_map:
                 errors.append({"cell": f"row {row['row_number']}", "message": duplicate_map[row["row_number"]]})
             if errors:
@@ -516,7 +516,7 @@ class CompanyPlatform:
         duplicate_map = duplicate_errors(normalized)
         results = []
         for row in normalized:
-            errors = [item for item in validate_record_all(row) if item.get("column") in mandatory]
+            errors = [item for item in validate_record_all(row, check_aadhaar_checksum=self.config(company_id).get("aadhaar_checksum_mode", "local") != "portal") if item.get("column") in mandatory]
             if row["row_number"] in duplicate_map:
                 errors.append({"cell": f"row {row['row_number']}", "message": duplicate_map[row["row_number"]]})
             if errors:
@@ -560,7 +560,7 @@ class CompanyPlatform:
         results = []
         valid_ids = []
         for row in selected:
-            errors = validate_record_all(row)
+            errors = validate_record_all(row, check_aadhaar_checksum=self.config(company_id).get("aadhaar_checksum_mode", "local") != "portal")
             if row.get("status") == "Registered - Pending Approval":
                 errors.append({"cell": f"row {row['row_number']}", "message": "This row already reached Registered - Pending Approval and is blocked from resubmission."})
             for field in self.config(company_id).get("required_fields", []):

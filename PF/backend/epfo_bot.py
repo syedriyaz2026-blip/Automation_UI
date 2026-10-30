@@ -623,6 +623,16 @@ class EpfoBot:
         """
         row, name = record["row_number"], record["name"]
         page = self.page.page
+        def portal_date(value: str) -> str:
+            for date_format in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"):
+                try:
+                    return datetime.strptime(value, date_format).strftime("%d/%m/%Y")
+                except ValueError:
+                    continue
+            raise ValueError("The validated date cannot be entered in EPFO's DD/MM/YYYY form.")
+
+        portal_dob = portal_date(record["dob"])
+        portal_doj = portal_date(record["doj"])
         self._step("Select previous UAN")
         page.locator("#previousEmployementYes").check()
         page.locator("#uan").wait_for(state="visible", timeout=20000)
@@ -630,7 +640,7 @@ class EpfoBot:
             ("UAN", "#uan", re.sub(r"\D", "", record["uan"])),
             ("Aadhaar", "#aadharVerify", re.sub(r"\D", "", record["aadhaar"])),
             ("Name", "#nameVerify", name),
-            ("Date of birth", "#dobVerify", record["dob"]),
+            ("Date of birth", "#dobVerify", portal_dob),
         ):
             self._step(f"Enter {label}")
             field = page.locator(selector)
@@ -649,7 +659,7 @@ class EpfoBot:
             raise RuntimeError(f"MEMBER_VALIDATION_MISMATCH: EPFO did not confirm the member details. {visible_text[-700:]}") from exc
         modal = page.locator(".modal:visible").filter(has=matched).first
         modal_text = modal.inner_text(timeout=3000)
-        if norm(name) not in norm(modal_text) or record["dob"] not in modal_text:
+        if norm(name) not in norm(modal_text) or portal_dob not in modal_text:
             raise RuntimeError("MEMBER_VALIDATION_MISMATCH: EPFO returned different name or birth date.")
         if record.get("gender") and norm(record["gender"]) not in norm(modal_text):
             raise RuntimeError("MEMBER_VALIDATION_MISMATCH: EPFO returned a different gender.")
@@ -678,13 +688,14 @@ class EpfoBot:
             raise RuntimeError("MEMBER_VALIDATION_MISMATCH: mobile differs from EPFO's verified record.")
         self.log(f"Row {row}: EPFO supplied marital status and existing member details for {name}.")
         self._step("Enter date of joining")
-        page.locator("#doj").fill(record["doj"])
+        page.locator("#doj").fill(portal_doj)
         self._step("Enter monthly EPF wage")
         page.locator("#wages").fill(record["basic_wage"])
-        if page.locator("#doj").input_value() != record["doj"] or page.locator("#wages").input_value() != record["basic_wage"]:
+        if page.locator("#doj").input_value() != portal_doj or page.locator("#wages").input_value() != record["basic_wage"]:
             raise RuntimeError("EPFO changed the joining date or wage before Save.")
         self.capture_evidence("Data Entry Steps")
         self._step("Save member registration")
+        before_save_text = self._page_text()
         dialogs: list[str] = []
 
         def handle_save_dialog(dialog):
@@ -701,10 +712,18 @@ class EpfoBot:
             while time.monotonic() < deadline:
                 alerts = page.locator(".alert-danger:visible, .alert-success:visible, .alert-warning:visible")
                 result_text = " ".join(alerts.all_inner_texts()) + " " + " ".join(dialogs)
+                page_text = self._page_text()
+                if any(message in page_text and message not in before_save_text for message in (
+                    "member is already active in current establishment",
+                    "member already registered in current establishment",
+                )):
+                    screenshot = self._save_error_screenshot(row, self.current_step)
+                    return RegistrationResult(row, name, "Blocked - Existing Active Member", "EPFO reports this member is already active in the current establishment. Review the existing member record before any retry.", error_type="DUPLICATE_ACTIVE_MEMBER", workflow_step=self.current_step, screenshot=screenshot)
                 if "pending for approval" in result_text.lower() and re.sub(r"\D", "", record["uan"]) in result_text and norm(name) in norm(result_text):
                     screenshot = self._save_error_screenshot(row, self.current_step)
                     return RegistrationResult(row, name, "Blocked - Existing Pending Registration", "EPFO reports this member and UAN already in pending approval transactions. This account's member search did not show the record; its owner must be checked before any further submission.", error_type="DUPLICATE_PENDING_MEMBER", workflow_step=self.current_step, screenshot=screenshot)
-                if re.search(r"(?:member|registration).{0,80}(?:saved|registered) successfully|successfully (?:saved|registered)", result_text, re.I):
+                success_pattern = r"(?:member|registration).{0,80}(?:saved|registered) successfully|successfully (?:saved|registered)"
+                if re.search(success_pattern, result_text, re.I) or (re.search(success_pattern, page_text, re.I) and not re.search(success_pattern, before_save_text, re.I)):
                     evidence = self.capture_evidence("Submission", "success")
                     return RegistrationResult(row, name, "Registered - Pending Approval", "EPFO explicitly confirmed this member was saved; approval remains pending.", workflow_step=self.current_step, screenshot=evidence)
                 page.wait_for_timeout(250)

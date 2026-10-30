@@ -1280,7 +1280,7 @@ class Handler(BaseHTTPRequestHandler):
         return value
 
     def _multipart_run_body(self) -> dict[str, Any]:
-        """Convert a workbook upload into the same normalized run payload as JSON."""
+        """Parse an Excel workbook or one-member PF registration JSON upload."""
         length = int(self.headers.get("Content-Length", "0"))
         if length <= 0 or length > MAX_BODY_BYTES:
             raise ValueError(f"Upload must be between 1 byte and {MAX_BODY_BYTES} bytes.")
@@ -1292,7 +1292,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         workbook = None
         fields: dict[str, str] = {}
-        for part in message.iter_attachments():
+        for part in message.iter_parts():
             name = part.get_param("name", header="content-disposition")
             filename = part.get_filename()
             if filename and name in {"file", "workbook"}:
@@ -1300,15 +1300,33 @@ class Handler(BaseHTTPRequestHandler):
             elif name:
                 fields[name] = (part.get_content() or "").strip()
         if not workbook:
-            raise ValueError("Upload must include a workbook field named 'file'.")
+            raise ValueError("Upload must include a file field named 'file'.")
         filename, data = workbook
-        if not filename.lower().endswith((".xlsx", ".xlsm")):
-            raise ValueError("Only .xlsx and .xlsm workbooks are accepted.")
-        upload_dir = RUN_ROOT / "uploads"
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        target = upload_dir / f"{uuid.uuid4().hex}_{Path(filename).name}"
-        target.write_bytes(data)
-        records = read_records(target)
+        request_path = urlparse(self.path).path.rstrip("/")
+        if filename.lower().endswith(".json") and request_path.startswith("/api/v1/companies/") and request_path.endswith(("/upload", "/validate-upload")):
+            company_id = unquote(request_path.split("/")[4])
+            if company_id not in PLATFORM.companies or fields.get("company_id") != company_id:
+                raise ValueError("Select the configured company matching the JSON file.")
+            try:
+                document = json.loads(data.decode("utf-8-sig"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise ValueError("The registration JSON file is invalid.") from exc
+            records = document.get("employees") if isinstance(document, dict) else None
+            if not isinstance(document, dict) or document.get("company_id") != company_id or not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
+                raise ValueError("Registration JSON must contain the selected company_id and exactly one employee.")
+            company = PLATFORM.config(company_id)
+            source_company = next((value for key, value in records[0].items() if norm(key) in {"company", "companyname"} and str(value).strip()), "")
+            allowed = {norm(company["name"]), norm(company.get("deputed_company_name", ""))}
+            if source_company and norm(source_company) not in allowed:
+                raise ValueError("Employee company does not match the selected company scope.")
+        elif filename.lower().endswith((".xlsx", ".xlsm")):
+            upload_dir = RUN_ROOT / "uploads"
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            target = upload_dir / f"{uuid.uuid4().hex}_{Path(filename).name}"
+            target.write_bytes(data)
+            records = read_records(target)
+        else:
+            raise ValueError("Only .xlsx, .xlsm, and PF registration .json files are accepted.")
         payload: dict[str, Any] = {"records": records, "mode": fields.get("mode", "REAL"), "filename": filename, "sha256": hashlib.sha256(data).hexdigest()}
         for key in ("username", "password", "company_id", "deputed_company_id", "scenario", "headless", "typing_delay_ms", "demo_delay_ms"):
             if key in fields:

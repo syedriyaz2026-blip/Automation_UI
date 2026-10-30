@@ -54,7 +54,7 @@ def verhoeff_valid(value: str) -> bool:
     return total == 0
 
 
-def validate_record_all(record: dict[str, str]) -> list[dict[str, str]]:
+def validate_record_all(record: dict[str, str], *, check_aadhaar_checksum: bool = True) -> list[dict[str, str]]:
     """Return every issue, each with a source column and human-readable message."""
     errors: list[dict[str, str]] = []
     def add(column: str, message: str):
@@ -86,7 +86,7 @@ def validate_record_all(record: dict[str, str]) -> list[dict[str, str]]:
         add("aadhaar", "Aadhaar must contain exactly 12 digits.")
     elif aadhaar and (aadhaar[0] == "0" or aadhaar[0] == "1"):
         add("aadhaar", "Aadhaar cannot start with 0 or 1.")
-    elif aadhaar and not verhoeff_valid(aadhaar):
+    elif aadhaar and check_aadhaar_checksum and not verhoeff_valid(aadhaar):
         add("aadhaar", "Aadhaar checksum is invalid; verify the number before submission.")
     for key in ("dob", "doj"):
         if as_text(record.get(key, "")).strip() and not parse_date(as_text(record[key])):
