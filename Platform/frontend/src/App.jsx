@@ -1105,6 +1105,9 @@ function App() {
       try {
         const settings = await loadIntakeSettings(companyId, deputedCompanyId);
         await loadQueue(companyId, settings);
+        if (can("intake.api") && settings.api_enabled) {
+          await syncSourceData();
+        }
       } catch (error) {
         setNotice(message(error));
       }
