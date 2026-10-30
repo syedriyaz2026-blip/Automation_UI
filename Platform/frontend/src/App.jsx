@@ -1105,7 +1105,7 @@ function App() {
       try {
         const settings = await loadIntakeSettings(companyId, deputedCompanyId);
         await loadQueue(companyId, settings);
-        if (can("intake.api") && settings.api_enabled) {
+        if (can("intake.api")) {
           await syncSourceData();
         }
       } catch (error) {
@@ -1396,10 +1396,7 @@ function App() {
       setNotice("API intake is available to Admin and Super Admin accounts only.");
       return;
     }
-    if (!intakeSettings.api_enabled) {
-      setNotice("API intake is disabled for the selected Company and Deputed Company scope.");
-      return;
-    }
+    // PF and ESI intake is API-only and automatic for the selected scope.
     if (!companyId || !deputedCompanyId) {
       setNotice("Select both Company and Deputed Company before fetching API data.");
       return;
@@ -1868,34 +1865,6 @@ function App() {
                     <strong>{deputedCompanyName || "No deputed company selected"}</strong>
                   </div>
                 </div>
-                <section className="scope-intake-settings" aria-label="Data intake controls">
-                  <div className="scope-intake-settings-heading">
-                    <div>
-                      <strong>Data intake controls</strong>
-                      <span>Independent settings for this Company and Deputed Company pair.</span>
-                    </div>
-                    <Upload size={18} aria-hidden="true" />
-                  </div>
-                  <div className="scope-intake-toggle-grid">
-                    <button
-                      type="button"
-                      className={"scope-intake-toggle " + (intakeSettings.api_enabled ? "enabled" : "disabled")}
-                      disabled={!can("intake.settings.manage") || !deputedCompanyId}
-                      onClick={() => setIntakeSettings((current) => ({ ...current, api_enabled: !current.api_enabled }))}
-                    >
-                      <span><strong>API intake</strong><small>Read and validate source API records.</small></span>
-                      <Status tone={intakeSettings.api_enabled ? "green" : "red"}>{intakeSettings.api_enabled ? "Enabled" : "Disabled"}</Status>
-                    </button>
-                    <div className="scope-intake-toggle enabled"><span><strong>Excel upload</strong><small>Disabled. PF and ESI accept records through API only.</small></span><Status tone="red">Disabled</Status></div>
-                  </div>
-                  {can("intake.settings.manage") ? (
-                    <Button type="button" variant="ghost" onClick={saveIntakeSettings} disabled={!deputedCompanyId || intakeSettingsSaving}>
-                      {intakeSettingsSaving ? "Saving…" : "Save intake settings"}
-                    </Button>
-                  ) : (
-                    <small className="helper">User accounts can view these settings. Only Admin and Super Admin can modify them.</small>
-                  )}
-                </section>
                 <div className="form-grid">
                   <label>
                     <span>Employer username</span>

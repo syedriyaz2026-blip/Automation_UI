@@ -1222,6 +1222,10 @@ class Handler(BaseHTTPRequestHandler):
                 403,
             )
             return False
+        # PF and ESI are API-only.  Intake is automatic for every authorized
+        # scope; there is no user-facing switch that can disable the source.
+        if module == "api":
+            return True
         try:
             settings = get_intake_settings(company_id, deputed_company_id)
         except ValueError as exc:
