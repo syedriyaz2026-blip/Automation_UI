@@ -2465,6 +2465,13 @@ function App() {
                             <th>DOB</th>
                             <th>DOJ</th>
                             <th>Basic Wage</th>
+                            <th>Father Name</th>
+                            <th>Marital Status</th>
+                            <th>Husband/Wife</th>
+                            <th>Gender</th>
+                            <th>Mobile</th>
+                            <th>Location</th>
+                            <th>PF No</th>
                           </>
                         )}
                         <th>Status</th>
@@ -2521,6 +2528,13 @@ function App() {
                               <td className={item.missing_required_fields?.includes("dob") ? "missing-cell" : ""}>{formatSourceDate(item.dob)}</td>
                               <td className={item.missing_required_fields?.includes("doj") ? "missing-cell" : ""}>{formatSourceDate(item.doj)}</td>
                               <td className={item.missing_required_fields?.includes("basic_wage") ? "missing-cell" : ""}>{item.basic_wage === "" || item.basic_wage == null ? "—" : item.basic_wage}</td>
+                              <td>{item.father_name || "—"}</td>
+                              <td>{item.marital_status || "—"}</td>
+                              <td>{item.husband_wife_name || item.spouse_name || "—"}</td>
+                              <td>{item.gender || "—"}</td>
+                              <td>{item.mobile || "—"}</td>
+                              <td>{item.location || "—"}</td>
+                              <td>{item.pf_number || "—"}</td>
                             </>
                           )}
                           <td>

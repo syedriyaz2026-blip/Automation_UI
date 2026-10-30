@@ -839,13 +839,13 @@ class CompleteEmployeeDataService:
         offset: int = 0,
         updated_since: datetime | None = None,
         joined_since: datetime | None = None,
-        recent_joining_only: bool = True,
+        recent_joining_only: bool = False,
     ) -> dict[str, Any]:
         limit = min(max(int(limit), 1), 5000)
         offset = max(int(offset), 0)
         warnings: list[str] = []
-        # The normal PF intake flow is limited to recent joiners. The display-
-        # only source sync can opt out and apply its own created/updated window.
+        # PF display/intake returns the complete source scope. No 48-hour or
+        # seven-day joining/created window is applied here.
         joining_cutoff = None
         if recent_joining_only:
             minimum_joining_cutoff = _recent_joining_cutoff()
