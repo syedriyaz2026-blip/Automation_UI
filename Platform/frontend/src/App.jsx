@@ -1634,16 +1634,6 @@ function App() {
         <Upload size={19} className="panel-icon" />
       </div>
       <div className="intake-source-grid">
-         <div className="intake-source-card">
-          <div className="intake-source-heading">
-               <div>
-               <strong>API-only intake <Status tone="green">Enabled</Status></strong>
-                 <span>Excel upload is disabled. Records must arrive from the configured API source.</span>
-                </div>
-             <span className="template-link secondary">API source only</span>
-             </div>
-             <div className="intake-actions"><span>Use “Fetch latest API data” to retrieve records for this scope.</span></div>
-        </div>
           {can("intake.api") && <div className={"intake-source-card api-intake-card " + (!intakeSettings.api_enabled ? "intake-disabled" : "")}>
            <div className="intake-source-heading">
              <div>
