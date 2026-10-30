@@ -1,0 +1,10 @@
+{
+  "required_columns": ["name", "doj", "dob", "aadhaar", "basic_wage", "uan"],
+  "required_values": ["name", "doj", "dob", "aadhaar", "basic_wage", "uan"],
+  "allowed_gender": ["male", "female", "transgender"],
+  "allowed_marital_status": ["married", "un-married", "unmarried", "single", "widow", "widower", "divorced"],
+  "max_name_length": 100,
+  "max_emp_code_length": 50,
+  "max_wage": 10000000,
+  "date_formats": ["%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d"]
+}

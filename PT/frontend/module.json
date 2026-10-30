@@ -1,0 +1,8 @@
+{
+  "module": "PT",
+  "displayName": "Professional Tax",
+  "enabled": false,
+  "status": "under_construction",
+  "host": "Platform/frontend",
+  "backend": "PT/backend"
+}

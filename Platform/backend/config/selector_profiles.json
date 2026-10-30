@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0.0",
+  "profiles": {
+    "EPFO_EMPLOYER_DEFAULT": {
+      "description": "Shared EPFO employer portal selector contract.",
+      "overrides": {}
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "module": "LWF",
+  "displayName": "Labour Welfare Fund",
+  "enabled": false,
+  "status": "under_construction",
+  "host": "Platform/frontend",
+  "backend": "LWF/backend"
+}

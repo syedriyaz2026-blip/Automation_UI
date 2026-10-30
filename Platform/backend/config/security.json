@@ -1,0 +1,9 @@
+{
+  "issuer": "pf-reg-auto-local",
+  "access_token_ttl_seconds": 3600,
+  "cookie_name": "EPFO_JWT",
+  "algorithm": "HS256",
+  "required_local_api_auth": true,
+  "api_key_fallback_enabled": true,
+  "default_role": "operator"
+}

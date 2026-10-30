@@ -1,0 +1,24 @@
+name: EPFO automation tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  mock-tests:
+    runs-on: windows-latest
+    env:
+      EPFO_AUTH_MODE: MOCK
+      EPFO_MOCK_SCENARIO: SUCCESS
+      MOCK_EPFO_EMPLOYER_ID: TEST_EMPLOYER
+      MOCK_EPFO_PASSWORD: TEST_PASSWORD
+      MOCK_EPFO_OTP: 123456
+      MOCK_EPFO_CAPTCHA: TEST_CAPTCHA
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -r requirements.txt
+      - run: python -m playwright install chromium
+      - run: pytest -q

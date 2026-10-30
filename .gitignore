@@ -1,0 +1,41 @@
+# Local secrets and credentials
+**/source_data.env
+**/Credentials.json
+**/credential_vault.json
+**/*credentials*.json
+**/*secret*.json
+**/*password*.json
+
+# Local databases and runtime state
+**/*.sqlite3
+**/*.sqlite3-wal
+**/*.sqlite3-shm
+**/api_inbox/
+**/api_runs/
+**/blob_storage/
+**/evidence/
+**/audit/
+
+# Generated reports, logs, and browser artifacts
+**/*.log
+**/reports/qa/
+**/screenshots/
+**/TestReport/
+**/test-output/
+
+# Python/Node build and cache files
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/node_modules/
+**/dist/
+**/target/
+
+# Temporary audit extraction
+_esic1_audit/
+
+# Local environment files
+**/.env
+**/.env.*
+!.env.example
+!**/*.env.example

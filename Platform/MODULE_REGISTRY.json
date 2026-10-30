@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "key": "PF",
+      "folder": "PF",
+      "display_name": "Provident Fund",
+      "short_name": "PF",
+      "status": "active",
+      "frontend_entry": "frontend/",
+      "backend_entry": "backend/",
+      "intake_sources": ["api", "excel"],
+      "automation": "backend/"
+    },
+    {
+      "key": "ESI",
+      "folder": "ESIC",
+      "display_name": "Employee State Insurance",
+      "short_name": "ESI",
+      "status": "active",
+      "frontend_entry": "frontend/",
+      "backend_entry": "backend/",
+      "intake_sources": ["api", "excel"],
+      "automation": "backend/esi_automation.py",
+      "source_entry": "backend/esi_source.py",
+      "contract_entry": "backend/esi_data.py"
+    },
+    {
+      "key": "LWF",
+      "folder": "LWF",
+      "display_name": "Labour Welfare Fund",
+      "short_name": "LWF",
+      "status": "under_construction",
+      "frontend_entry": "frontend/",
+      "backend_entry": "backend/",
+      "intake_sources": [],
+      "automation": null
+    },
+    {
+      "key": "PT",
+      "folder": "PT",
+      "display_name": "Professional Tax",
+      "short_name": "PT",
+      "status": "under_construction",
+      "frontend_entry": "frontend/",
+      "backend_entry": "backend/",
+      "intake_sources": [],
+      "automation": null
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "module": "PF",
+  "displayName": "Provident Fund",
+  "enabled": true,
+  "host": "Platform/frontend",
+  "backend": "PF/backend"
+}

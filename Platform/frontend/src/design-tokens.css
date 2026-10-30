@@ -1,0 +1,24 @@
+/* Theme contract: keep reference-portal tokens and internal operations tokens here. */
+:root {
+  --font-body: "Open Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  --font-heading: Raleway, "Segoe UI", Arial, sans-serif;
+  --font-utility: Tahoma, Verdana, sans-serif;
+
+  --epfo-blue: #0a54ae;
+  --epfo-navy: #112755;
+  --epfo-link: #155396;
+  --epfo-orange: #ef880f;
+  --epfo-warning: #f8b500;
+  --epfo-success: #008d4d;
+  --epfo-danger: #dd454c;
+  --epfo-info: #f0f9ff;
+  --epfo-text: #424242;
+  --epfo-muted: #777777;
+  --epfo-border: #d2d6de;
+
+  --ops-primary: #6b5ce7;
+  --ops-primary-dark: #5b4bd8;
+  --ops-surface: #ffffff;
+  --ops-text: #1e1b4b;
+  --ops-muted: #6b7280;
+}

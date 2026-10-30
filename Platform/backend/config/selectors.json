@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "profile_name": "EPFO_EMPLOYER_DEFAULT",
+  "last_verified": "2026-10-06",
+  "contracts": {
+    "login": ["login_username", "login_password", "login_submit"],
+    "authenticated_dashboard": ["auth_success"],
+    "registration_identity": ["registration_ready", "previous_uan_yes", "uan", "aadhaar", "verify"],
+    "registration_details": ["joining_date", "wage", "save"],
+    "pending_result": ["pending_approval"]
+  },
+  "login_username": ["input[name='username']", "#username", "input[placeholder*='User']"],
+  "login_password": ["input[name='password']", "#password", "input[type='password']"],
+  "login_submit": ["button[type='submit']", "input[type='submit']", "button:has-text('Login')", "button:has-text('Sign in')"],
+  "member_menu": ["a:text-is('Member')", "a:has-text('Member')", "button:has-text('Member')"],
+  "register_individual_menu": ["a:text-is('REGISTER-INDIVIDUAL')", "a:has-text('Register Individual')", "a:has-text('REGISTER INDIVIDUAL')", "button:has-text('Register Individual')"],
+  "captcha": ["img[src*='captcha' i]", "input[name*='captcha' i]", "input[id*='captcha' i]"],
+  "auth_success": ["text=Dashboard", "text=Employer Dashboard", "a[href*='dashboard' i]", "text=Member Registration"],
+  "auth_failure": ["text=Authentication failed", "text=Invalid credentials", "text=Login failed"],
+  "session_expired": ["text=Session expired", "text=login again", "text=Your session has expired"],
+  "registration_ready": ["text=Individual Member Registration", "text=Register Individual Member"],
+  "identity_success": ["text=Member identity verified", "text=Identity verified", "text=Verified successfully"],
+  "pending_approval": ["text=Registered - Pending Approval", "text=Pending Approval"],
+  "previous_uan_yes": ["input[type='radio'][value='Y']", "label:has-text('Yes')", "text=Yes"],
+  "uan": ["input[name*='uan' i]", "input[id*='uan' i]"],
+  "aadhaar": ["input[name*='aadhaar' i]", "input[name*='aadhar' i]", "input[id*='aadhaar' i]"],
+  "verify": ["button:has-text('Verify')", "input[value='Verify']", "text=Verify"],
+  "joining_date": ["input[name*='joining' i]", "input[id*='joining' i]"],
+  "wage": ["input[name*='wage' i]", "input[id*='wage' i]"],
+  "save": ["button:has-text('Save')", "input[value='Save']", "text=Save"]
+}

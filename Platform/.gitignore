@@ -1,0 +1,14 @@
+node_modules/
+frontend/dist/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.deepeval/
+*.log
+
+backend/api_inbox/
+backend/blob_storage/
+backend/api_runs/*
+!backend/api_runs/.gitkeep
+backend/config/source_data.env

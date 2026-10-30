@@ -1,0 +1,7 @@
+{
+  "module": "ESIC",
+  "displayName": "Employee State Insurance",
+  "enabled": true,
+  "host": "Platform/frontend",
+  "backend": "ESIC/backend"
+}

@@ -1,0 +1,24 @@
+{
+  "companies": [
+    {
+      "id": "alp_consulting",
+      "name": "Alp Consulting Ltd",
+      "deputed_company_name": "Alp Head Office",
+      "portal_profile": "EPFO_EMPLOYER_ALP_CONSULTING",
+      "selector_profile": "EPFO_EMPLOYER_DEFAULT",
+      "portal_url": "https://unifiedportal-emp.epfindia.gov.in/epfo/",
+      "register_url": "https://unifiedportal-emp.epfindia.gov.in/epfo/uanmember/viewRegister",
+      "credential_env": {"username": "EPFO_ALP_CONSULTING_USER", "password": "EPFO_ALP_CONSULTING_PASSWORD"},
+      "source_url": "",
+      "selected_fields": ["sl_no", "emp_code", "company", "name", "doj", "dob", "aadhaar", "father_name", "marital_status", "husband_wife_name", "gender", "mobile", "location", "basic_wage", "uan"],
+      "required_fields": ["uan", "aadhaar", "name", "dob", "doj", "basic_wage"],
+      "aliases": {
+        "emp_code": ["employee_code", "employee id"],
+        "name": ["employee_name", "full_name"],
+        "aadhaar": ["aadhar", "aadhaar_no", "aadhaar_number"],
+        "basic_wage": ["basic", "basic_salary", "monthly_wage"],
+        "uan": ["uan_number", "previous_uan"]
+      }
+    }
+  ]
+}
