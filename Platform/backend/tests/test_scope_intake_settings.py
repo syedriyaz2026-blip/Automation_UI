@@ -9,25 +9,20 @@ def test_intake_settings_are_isolated_by_company_and_deputed_scope(tmp_path, mon
 
     default = scope_intake_settings.get("company-a", "deputed-a")
     assert default["api_enabled"] is True
-    assert default["excel_enabled"] is False
 
     saved = scope_intake_settings.save(
         "company-a",
         "deputed-a",
         api_enabled=False,
-        excel_enabled=True,
         updated_by="admin",
     )
     assert saved["api_enabled"] is False
-    assert saved["excel_enabled"] is False
     assert saved["updated_by"] == "admin"
 
     untouched_deputed_scope = scope_intake_settings.get("company-a", "deputed-b")
     untouched_company_scope = scope_intake_settings.get("company-b", "deputed-a")
     assert untouched_deputed_scope["api_enabled"] is True
-    assert untouched_deputed_scope["excel_enabled"] is False
     assert untouched_company_scope["api_enabled"] is True
-    assert untouched_company_scope["excel_enabled"] is False
 
     assert scope_intake_settings.list_for_companies({"company-a"}) == [saved]
     assert scope_intake_settings.list_for_companies({"company-b"}) == []
@@ -40,4 +35,5 @@ def test_openapi_documents_independent_intake_controls():
     assert settings_path["post"]["requestBody"]["required"] is True
     assert "/api/v1/admin/intake-settings" in document["paths"]
     schema = document["components"]["schemas"]["IntakeSettings"]
-    assert {"api_enabled", "excel_enabled"}.issubset(schema["properties"])
+    assert "api_enabled" in schema["properties"]
+    assert "excel_enabled" not in schema["properties"]

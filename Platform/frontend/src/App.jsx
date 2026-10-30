@@ -48,7 +48,6 @@ const DEFAULT_DUMMY_CREDENTIALS = {
 };
 const DEFAULT_INTAKE_SETTINGS = {
   api_enabled: true,
-  excel_enabled: false,
   updated_at: "",
   updated_by: "default",
 };
@@ -246,7 +245,7 @@ function ScopedIntakeSettingsPanel({ role, permissions = [] }) {
     if (!companyId || !deputedCompanyId || !canModify) return;
     try {
       setStatus("Saving intake settings…");
-      const saved = await api("/api/v1/companies/" + encodeURIComponent(companyId) + "/intake-settings", json({ deputed_company_id: deputedCompanyId, api_enabled: settings.api_enabled, excel_enabled: settings.excel_enabled }));
+      const saved = await api("/api/v1/companies/" + encodeURIComponent(companyId) + "/intake-settings", json({ deputed_company_id: deputedCompanyId, api_enabled: settings.api_enabled }));
       setSettings(saved);
       setStatus("Saved for this Company and Deputed Company scope.");
     } catch (error) { setStatus(message(error)); }
@@ -261,7 +260,6 @@ function ScopedIntakeSettingsPanel({ role, permissions = [] }) {
       </div>
       <div className="intake-setting-toggles">
         <button type="button" className={"intake-setting-toggle " + (settings.api_enabled ? "enabled" : "disabled")} disabled={!canModify || !deputedCompanyId} onClick={() => setSettings((current) => ({ ...current, api_enabled: !current.api_enabled }))}><span><strong>API intake</strong><small>Source API data retrieval and API submission</small></span><Status tone={settings.api_enabled ? "green" : "red"}>{settings.api_enabled ? "Enabled" : "Disabled"}</Status></button>
-        <div className="intake-setting-toggle disabled"><span><strong>Excel upload</strong><small>Disabled. PF and ESI accept records through API only.</small></span><Status tone="red">Disabled</Status></div>
       </div>
       {canModify ? <Button type="button" onClick={save} disabled={!deputedCompanyId}>Save intake settings</Button> : <small className="helper">User accounts can view the scope settings but cannot change them.</small>}
       {status && <small className="helper">{status}</small>}
@@ -944,7 +942,6 @@ function App() {
         json({
           deputed_company_id: deputedCompanyId,
           api_enabled: Boolean(intakeSettings.api_enabled),
-          excel_enabled: Boolean(intakeSettings.excel_enabled),
         }),
       );
       setIntakeSettings(saved);
@@ -1739,7 +1736,7 @@ function App() {
             setScopeApplied(true);
             setDrawer("");
             setConfigurationOpen(false);
-            setUploadOpen(true);
+            setUploadOpen(false);
           }}
           onCancel={cancelScopeSelection}
           scopeApplied={scopeApplied}
@@ -2193,15 +2190,6 @@ function App() {
           </div>
           <button
             type="button"
-            className={"nav-item nav-button " + (uploadOpen ? "active" : "")}
-            onClick={() => setUploadOpen(true)}
-            title="API intake"
-          >
-            <Upload size={18} />
-            <span className="nav-text">API intake</span>
-          </button>
-          <button
-            type="button"
              className={
                "nav-item nav-button " +
                (!uploadOpen && !drawer && !configurationOpen ? "active" : "")
@@ -2321,7 +2309,7 @@ function App() {
             (!(scopeApplied && deputedCompanyId) ? "scope-locked" : "")
           }
         >
-          {uploadOpen ? (
+          {false ? (
             <div className="page-view">
               <div className="page-view-heading page-view-heading-with-scope">
                 <div>

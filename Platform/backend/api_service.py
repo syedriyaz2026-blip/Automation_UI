@@ -1217,7 +1217,7 @@ class Handler(BaseHTTPRequestHandler):
             self._json(
                 error_response(
                     "EXCEL_INTAKE_DISABLED",
-                    "Excel intake is disabled. PF and ESI records must arrive through the API.",
+                    "Workbook intake is not supported. PF and ESI records must arrive through the API.",
                 ),
                 403,
             )
@@ -2392,14 +2392,13 @@ class Handler(BaseHTTPRequestHandler):
                     company_id,
                     deputed_company_id,
                     api_enabled=_as_bool(body.get("api_enabled"), True),
-                    excel_enabled=_as_bool(body.get("excel_enabled"), True),
                     updated_by=session_username(self.headers),
                 )
                 log_admin_event(
                     "INTAKE_MODULE_SETTINGS_UPDATED",
                     actor=session_username(self.headers),
                     target=f"{company_id}:{deputed_company_id}",
-                    details={"api_enabled": result["api_enabled"], "excel_enabled": result["excel_enabled"]},
+                    details={"api_enabled": result["api_enabled"]},
                 )
                 return self._json(result)
             if path == "/api/v1/validate":

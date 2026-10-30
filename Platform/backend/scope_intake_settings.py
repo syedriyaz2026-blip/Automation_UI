@@ -60,7 +60,6 @@ def _public(row: sqlite3.Row | dict[str, Any], company_id: str, deputed_company_
         "company_id": company_id,
         "deputed_company_id": deputed_company_id,
         "api_enabled": bool(row["api_enabled"] if isinstance(row, sqlite3.Row) else row.get("api_enabled", 1)),
-        "excel_enabled": False,
         "updated_at": row["updated_at"] if isinstance(row, sqlite3.Row) else row.get("updated_at", ""),
         "updated_by": row["updated_by"] if isinstance(row, sqlite3.Row) else row.get("updated_by", ""),
         "storage": "sqlite",
@@ -81,7 +80,6 @@ def get(company_id: Any, deputed_company_id: Any) -> dict[str, Any]:
                     "company_id": company,
                     "deputed_company_id": deputed,
                     "api_enabled": True,
-                    "excel_enabled": False,
                     "updated_at": "",
                     "updated_by": "default",
                     "storage": "sqlite",
@@ -91,7 +89,7 @@ def get(company_id: Any, deputed_company_id: Any) -> dict[str, Any]:
             connection.close()
 
 
-def save(company_id: Any, deputed_company_id: Any, *, api_enabled: bool, excel_enabled: bool, updated_by: str) -> dict[str, Any]:
+def save(company_id: Any, deputed_company_id: Any, *, api_enabled: bool, updated_by: str) -> dict[str, Any]:
     company, deputed = _scope(company_id, deputed_company_id)
     timestamp = _now()
     with LOCK:
@@ -104,7 +102,6 @@ def save(company_id: Any, deputed_company_id: Any, *, api_enabled: bool, excel_e
                 VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(company_id, deputed_company_id) DO UPDATE SET
                     api_enabled = excluded.api_enabled,
-                    excel_enabled = excluded.excel_enabled,
                     updated_at = excluded.updated_at,
                     updated_by = excluded.updated_by
                 """,
