@@ -584,7 +584,8 @@ class SourceScheduler:
 
 
 SCHEDULER = SourceScheduler()
-AUTO_PROCESS_ENABLED = os.getenv("PF_AUTO_PROCESS_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+EPFO_RUNS_ENABLED = os.getenv("PF_EPFO_RUNS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
+AUTO_PROCESS_ENABLED = EPFO_RUNS_ENABLED and os.getenv("PF_AUTO_PROCESS_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 AUTO_PROCESS_LOCKS: dict[str, threading.Lock] = {}
 AUTO_PROCESS_LOCKS_GUARD = threading.Lock()
 
@@ -2303,14 +2304,13 @@ class Handler(BaseHTTPRequestHandler):
                 if deputed_source_id is None:
                     return self._json(error_response("INVALID_DEPUTED_COMPANY_ID", "deputed_company_id must be a non-negative integer."), 400)
                 try:
-                    created_since = datetime.now().replace(tzinfo=None) - timedelta(days=7)
                     source_result = SOURCE_DATA.complete(
                         source_company_id,
                         deputed_source_id,
                         text(body.get("employee_code")),
                         _safe_int_query(str(body.get("limit", 500)), 500),
                         _safe_int_query(str(body.get("offset", 0)), 0),
-                        created_since,
+                        None,
                         None,
                         recent_joining_only=False,
                     )
@@ -2367,7 +2367,7 @@ class Handler(BaseHTTPRequestHandler):
                     "deputed_company_id": deputed_company_id,
                     "source": "source_api",
                     "queried_at": now(),
-                    "created_window_days": 7,
+                    "display_scope": "all_source_employees",
                     "processing": {"automatic": False, "message": "PF source records were fetched for display only; no automation was started."},
                     "validation": scan,
                     "ingest": ingest_result,
@@ -2459,6 +2459,8 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 if not self._require_access(roles=(ROLE_MASTER_ADMIN, ROLE_SUPER_ADMIN, ROLE_ADMIN), company_id=text(body.get("company_id"))):
                     return
+                if not EPFO_RUNS_ENABLED:
+                    return self._json(error_response("EPFO_RUN_DISABLED", "EPFO/PF portal processing is temporarily disabled. Records may still be fetched and displayed."), 423)
                 allowed = set(ALLOWED_OPTIONS) | {"employees", "records", "username", "password"}
                 unknown = sorted(set(body) - allowed)
                 if unknown:
