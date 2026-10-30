@@ -14,6 +14,7 @@ state before continuing.
 from __future__ import annotations
 
 import time
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -37,6 +38,17 @@ ARCHIVE_STAGES = (
 
 class EsiPortalWorkflowError(RuntimeError):
     """Raised when a configured ESI portal stage cannot be completed safely."""
+
+
+def load_selector_profile(path: Path) -> dict[str, Any]:
+    """Load a reviewed ESI selector profile and reject incomplete JSON."""
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise EsiPortalWorkflowError(f"Unable to load ESI selector profile: {path}") from exc
+    if not isinstance(payload, dict):
+        raise EsiPortalWorkflowError("ESI selector profile must be a JSON object.")
+    return payload
 
 
 @dataclass
@@ -175,7 +187,10 @@ class EsiPortalWorkflow:
             self._click("submit")
             self.page.wait_for_load_state("domcontentloaded")
 
-            result.portal_reference = self.page.locator(self._selector("portal_reference", required=False) or "body").first.inner_text()
+            result.portal_reference = self.page.locator(self._selector("portal_reference")).first.inner_text()
+            success_marker = self._selector("success_marker")
+            if not self.page.locator(success_marker).first.is_visible():
+                raise EsiPortalWorkflowError("ESIC success marker was not found after submission.")
             self._stage(result, "ESIC Number Retrieval")
             self._stage(result, "Report and e-PehChan")
             result.status = "ESI_REGISTERED"

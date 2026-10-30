@@ -5,6 +5,7 @@ from ESIC.backend.esi_portal_workflow import (
     EsiPortalWorkflow,
     EsiPortalWorkflowError,
     EsiWorkflowResult,
+    load_selector_profile,
 )
 
 
@@ -38,3 +39,9 @@ def test_result_is_serializable():
     payload = result.as_dict()
     assert payload["record_id"] == "esi-1"
     assert payload["status"] == "ESI_REGISTERED"
+
+
+def test_selector_profile_is_explicit_json(tmp_path: Path):
+    profile = tmp_path / "selectors.json"
+    profile.write_text('{"login_username": "#user"}', encoding="utf-8")
+    assert load_selector_profile(profile)["login_username"] == "#user"
