@@ -756,6 +756,7 @@ function ScopePicker({
                         >
                           <span className="scope-option-copy">
                             <strong>{item.name}</strong>
+                            {item.deputed_company_name && <small>{item.deputed_company_name}</small>}
                           </span>
                           {String(item.id) === String(companyId) && <CheckCircle2 size={15} />}
                         </button>
@@ -1288,6 +1289,23 @@ function App() {
       await attachAutomaticRun(saved.auto_process);
     } catch (error) {
       setCredentialMessage(message(error));
+    }
+  }
+  async function testPfSignIn() {
+    if (!companyId || !deputedCompanyId || !credentialHasSavedPassword) return;
+    setLoading(true);
+    try {
+      const started = await api(
+        "/api/v1/companies/" + encodeURIComponent(companyId) + "/test-signin",
+        json({ deputed_company_id: deputedCompanyId, confirm_real: true }),
+      );
+      setConfigurationOpen(false);
+      setDrawer("live");
+      await attachAutomaticRun(started);
+    } catch (error) {
+      setCredentialMessage(message(error));
+    } finally {
+      setLoading(false);
     }
   }
   function requestSaveCredentials() {
@@ -2056,6 +2074,11 @@ function App() {
                       <Button type="button" onClick={saveCredentials}>Confirm update</Button>
                     </div>
                   </div>
+                )}
+                {activeModule === "PF" && can("runs.start") && credentialHasSavedPassword && !credentialsEditing && (
+                  <Button type="button" variant="ghost" onClick={testPfSignIn} disabled={loading}>
+                    {loading ? "Starting sign-in test…" : "Test PF sign-in"}
+                  </Button>
                 )}
                 <small className="helper">
                   {credentialMessage ||

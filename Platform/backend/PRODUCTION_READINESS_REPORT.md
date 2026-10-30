@@ -34,7 +34,7 @@ After:
 
 Authentication is separated by mode:
 
-- `REAL`: configured EPFO URL, runtime password, manual CAPTCHA, actual dashboard verification.
+- `REAL`: configured EPFO URL, scoped employer credentials, automatic CAPTCHA entry and Sign In, actual dashboard verification.
 - `MOCK`: dynamically created `127.0.0.1` server, deterministic CAPTCHA, Playwright-driven automated tests, no EPFO connection.
 
 ## Implemented changes
@@ -92,7 +92,7 @@ $env:EPFO_MOCK_SCENARIO = "SUCCESS"
 pytest -q
 ```
 
-REAL supervised operation uses `EPFO_AUTH_MODE=REAL`, the configured EPFO URL, runtime employer credentials, and manual CAPTCHA. Run a single-row canary before a batch.
+REAL supervised operation uses `EPFO_AUTH_MODE=REAL`, the configured EPFO URL, scoped employer credentials, and automatic CAPTCHA entry. Run a single-row canary before a batch.
 
 ## Rollback
 

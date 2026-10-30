@@ -1,33 +1,22 @@
-# CAPTCHA integration boundary
+# EPFO CAPTCHA integration
 
-The backend now treats CAPTCHA as an operator checkpoint, not as a value to be
-automated. `captcha_service.py` is responsible for four safe operations:
+The REAL PF worker reads the five-character CAPTCHA image displayed in its
+current browser session. `captcha_service.py` locates the image, captures its
+original pixels through a canvas, and tracks its fingerprint. The supplied
+`captcha_ocr.py` glyph model recognizes each character; `captcha_solver.py`
+uses RapidOCR if that recognizer cannot read the image.
+The answer stays in memory while `EpfoBot` fills the configured input and
+clicks **Sign In**. The worker continues only after it sees the expected
+authenticated dashboard.
 
-- detect a configured visible CAPTCHA control;
-- classify the configured image challenge;
-- fingerprint the rendered image to detect a refresh/change;
-- save redacted diagnostic evidence and expose an explicit expiry state.
+The image and input have separate selector keys in `config/selectors.json`:
+`captcha` for the image, `captcha_input` for the field. Keep them in sync with
+portal changes. The current solver expects five characters; an unreadable or
+changed format fails explicitly. A rejected answer is retried only when EPFO
+provides a changed image, up to `max_captcha_attempts` in `config/settings.json`.
 
-`EpfoBot` uses the service during authentication. It pauses in
-`WAITING_FOR_OPERATOR`, and the operator completes the CAPTCHA and submits the
-portal form in the visible browser. No OCR, CAPTCHA answer extraction, token
-injection, external solver, audio challenge, cookie reuse, or credential logging
-is implemented.
-
-## Why the component is intentionally limited
-
-The existing EPFO employer login is protected by a portal CAPTCHA. Authorized
-credentials do not make bypassing that control safe or supported. The supported
-automation boundary is therefore: prepare the browser, detect the checkpoint,
-capture evidence, wait for a human, and verify the authenticated dashboard.
-
-For production, an organization should request an officially supported
-server-to-server integration or approved filing channel from EPFO. Until that
-contract is provided, the browser worker must retain this manual checkpoint.
-
-## Extension points
-
-Portal changes should normally require updates only to `config/selectors.json`
-or a selector profile. A future officially approved integration should be added
-as a separate authenticated provider, with the same `AuthState` contract, and
-must not be implemented by bypassing the browser CAPTCHA.
+Install `backend/requirements.txt` before REAL runs. The trained model is
+bundled in `PF/backend/models/`. The supplied native Tesseract runtime is
+detected in the sibling `PF_auto_f` project; a standard Tesseract installation
+or `TESSERACT_LIBRARY` also works. Both API and desktop preflight check for
+RapidOCR as a fallback. The recognized text is not logged or persisted.

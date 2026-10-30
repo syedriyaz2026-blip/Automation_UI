@@ -1,9 +1,8 @@
 """Single-process API for EPFO member registration automation.
 
-The service accepts employee records as JSON and runs the existing validated
-Selenium workflow sequentially. REAL mode keeps portal security checkpoints
-manual and never performs approval. A private MOCK harness remains available
-only to automated tests.
+The service accepts employee records as JSON and runs the validated browser
+workflow sequentially. REAL mode signs in through the employer portal and
+stops before member approval. A private MOCK harness is available to tests.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ import hashlib
 import hmac
 import secrets
 import threading
+import time
 import uuid
 import urllib.request
 from email.parser import BytesParser
@@ -78,7 +78,7 @@ TERMINAL_STATUSES = {"COMPLETED", "COMPLETED_WITH_ERRORS", "FAILED", "STOPPED", 
 ALLOWED_OPTIONS = {
     "mode", "scenario", "headless", "demo_delay_ms", "typing_delay_ms",
     "confirm_real", "company_id", "company_name", "deputed_company_id",
-    "deputed_company_name", "record_ids", "source", "auto_process",
+    "deputed_company_name", "record_ids", "source", "auto_process", "auth_only",
 }
 EXECUTION_LOCK = threading.Lock()
 LOGGER = logging.getLogger("epfo_api")
@@ -461,9 +461,19 @@ class RunStore:
         target = RUN_ROOT / run["run_id"] / "run.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         safe = {k: v for k, v in run.items() if k not in {"stop_event", "continue_event"}}
-        temp = target.with_suffix(".json.tmp")
-        temp.write_text(json.dumps(safe, indent=2, ensure_ascii=False), encoding="utf-8")
-        temp.replace(target)
+        temp = target.with_name(f"{target.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            temp.write_text(json.dumps(safe, indent=2, ensure_ascii=False), encoding="utf-8")
+            for attempt in range(8):
+                try:
+                    temp.replace(target)
+                    break
+                except PermissionError:
+                    if attempt == 7:
+                        raise
+                    time.sleep(0.05 * (attempt + 1))
+        finally:
+            temp.unlink(missing_ok=True)
 
     def snapshot(self, run_id: str) -> dict[str, Any] | None:
         run = self.get(run_id)
@@ -679,13 +689,21 @@ def api_preflight(mode: str, artifact_dir: Path) -> list[dict[str, str]]:
 
     try:
         selectors = json.loads((ROOT / "config" / "selectors.json").read_text(encoding="utf-8"))
-        critical = ("login_username", "login_password", "login_submit", "captcha", "uan", "aadhaar", "verify", "joining_date", "wage", "save")
+        critical = ("login_username", "login_password", "login_submit", "captcha", "captcha_input", "uan", "aadhaar", "verify", "joining_date", "wage", "save")
         missing = [key for key in critical if not selectors.get(key)]
         check("Critical selector configuration", not missing, "Missing: " + ", ".join(missing))
     except Exception as exc:
         check("Critical selector configuration", False, str(exc))
 
     if mode == "REAL":
+        try:
+            from rapidocr import RapidOCR  # noqa: F401
+            import cv2  # noqa: F401
+            from PIL import Image  # noqa: F401
+            model = ROOT.parents[1] / "PF" / "backend" / "models" / "ocr-glyphs-python.json"
+            check("CAPTCHA OCR available", model.is_file(), "Trained glyph model, Pillow, RapidOCR, and OpenCV installed" if model.is_file() else "Trained glyph model is missing")
+        except ImportError as exc:
+            check("CAPTCHA OCR available", False, f"Install backend requirements: {type(exc).__name__}")
         try:
             request = urllib.request.Request(settings["portal_url"], method="GET", headers={"User-Agent": "EPFO-Automation-Preflight/1.0"})
             with urllib.request.urlopen(request, timeout=10) as response:
@@ -759,7 +777,7 @@ def run_worker(run_id: str, username: str, password: str) -> None:
                         PLATFORM.update_status(company_id, item["record_id"], "VALIDATION_FAILED", run_id=run_id, message=item.get("message", ""))
             if results:
                 refresh_handover()
-            if not valid:
+            if not valid and not options.get("auth_only"):
                 refresh_handover()
                 notify_handover()
                 STORE.event(run_id, "RUN_COMPLETED_WITH_ERRORS", "HANDOVER_REQUIRED", message="No valid rows were submitted; validation handover is ready.")
@@ -821,11 +839,14 @@ def run_worker(run_id: str, username: str, password: str) -> None:
                         extra["screenshot"] = screenshot
                     STORE.event(run_id, "AUTH_STATE", "AUTHENTICATING", **extra)
 
-                STORE.event(run_id, "AUTHENTICATION_STARTED", "AUTHENTICATING", message="Browser opened; complete the CAPTCHA checkpoint manually in REAL mode.")
+                STORE.event(run_id, "AUTHENTICATION_STARTED", "AUTHENTICATING", message="Browser opened; CAPTCHA recognition and Sign In will run automatically.")
                 auth = bot.authenticate(on_state=auth_state, continue_event=run["continue_event"])
                 if auth.state != AuthState.REGISTRATION_READY:
                     item = {"row": "", "employee_name": "", "status": "Authentication Failed", "error_type": auth.error_type, "workflow_step": auth.state.value, "message": auth.message, "screenshot": auth.screenshot, "completed_at": now()}
                     run["results"].append(item)
+                    if options.get("auth_only"):
+                        STORE.event(run_id, "RUN_FAILED", "FAILED", message=auth.message, error_type=auth.error_type)
+                        return
                     if company_id:
                         for pending_record in valid:
                             PLATFORM.update_status(
@@ -838,6 +859,10 @@ def run_worker(run_id: str, username: str, password: str) -> None:
                     refresh_handover()
                     notify_handover()
                     STORE.event(run_id, "RUN_FAILED", "FAILED", message=auth.message, error_type=auth.error_type)
+                    return
+
+                if options.get("auth_only"):
+                    STORE.event(run_id, "RUN_COMPLETED", "COMPLETED", message="PF sign-in test passed; no employee records were submitted.")
                     return
 
                 STORE.event(run_id, "AUTHENTICATED", "PROCESSING", message="Authentication checkpoint completed; registration starts sequentially.")
@@ -898,8 +923,9 @@ def run_worker(run_id: str, username: str, password: str) -> None:
             exclude_record_id=current_record.get("record_id", "") if current_record and current_status in SUCCESS_STATUSES else "",
         )
         run["results"].append({"row": run.get("current_row", ""), "employee_name": run.get("current_employee", ""), "status": "Failed", "error_type": type(exc).__name__, "workflow_step": "Run worker", "message": str(exc), "screenshot": "", "completed_at": now()})
-        refresh_handover()
-        notify_handover()
+        if not options.get("auth_only"):
+            refresh_handover()
+            notify_handover()
         STORE.event(run_id, "RUN_FAILED", "FAILED", message=str(exc), error_type=type(exc).__name__)
     finally:
         if mock_server:
@@ -1552,9 +1578,20 @@ class Handler(BaseHTTPRequestHandler):
                 result["companies"] = [item for item in result.get("companies", []) if str(item.get("id", item.get("company_id", ""))) in allowed]
                 return self._json(result)
             except SourceDataError as exc:
+                source_status = SOURCE_DATA.status()
+                if not source_status["database_configured"] and not source_status["api_configured"]:
+                    companies = [item for item in PLATFORM.company_list() if self._can_access_company(str(item["id"]))]
+                    return self._json({"companies": companies, "source": "local_company_config", "read_only": True, "warnings": [str(exc)]})
                 return self._json(error_response("SOURCE_UNAVAILABLE", str(exc)), 503)
         if path.startswith("/api/v1/source/companies/") and path.endswith("/deputed"):
-            company_id = _as_source_id(path.split("/")[5])
+            raw_company_id = unquote(path.split("/")[5])
+            source_status = SOURCE_DATA.status()
+            if not source_status["database_configured"] and not source_status["api_configured"] and raw_company_id in PLATFORM.companies:
+                if not self._require_access(permissions=("companies.view",), company_id=raw_company_id):
+                    return
+                company = PLATFORM.config(raw_company_id)
+                return self._json({"deputed_companies": [{"id": raw_company_id, "name": company.get("deputed_company_name") or company["name"]}], "source": "local_company_config", "read_only": True, "warnings": []})
+            company_id = _as_source_id(raw_company_id)
             if company_id is None:
                 return self._json(error_response("INVALID_COMPANY_ID", "company_id must be numeric."), 400)
             if not self._require_access(permissions=("companies.view",), company_id=str(company_id)):
@@ -2374,6 +2411,25 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 result["auto_process"] = auto_process_company(company_id, text(body.get("deputed_company_id")))
                 return self._json(result)
+            if path.startswith("/api/v1/companies/") and path.endswith("/test-signin"):
+                if not self._require_module("PF"):
+                    return
+                company_id = unquote(path.split("/")[4])
+                if not self._require_access(roles=(ROLE_MASTER_ADMIN, ROLE_SUPER_ADMIN, ROLE_ADMIN), permissions=("runs.start",), company_id=company_id):
+                    return
+                deputed_company_id = text(body.get("deputed_company_id"))
+                if company_id not in PLATFORM.companies or deputed_company_id != company_id:
+                    return self._json(error_response("INVALID_SCOPE", "Select a configured local Company and Deputed Company scope."), 400)
+                if body.get("confirm_real") is not True:
+                    return self._json(error_response("CONFIRM_REAL_REQUIRED", "Real portal sign-in requires confirm_real=true."), 400)
+                username, password = resolve_credentials(company_id, deputed_company_id=deputed_company_id)
+                if not username or not password:
+                    return self._json(error_response("CREDENTIALS_MISSING", "Save PF employer credentials for this scope first."), 400)
+                company = PLATFORM.config(company_id)
+                options = {"mode": "REAL", "auth_only": True, "confirm_real": True, "headless": False, "company_id": company_id, "company_name": company["name"], "deputed_company_id": deputed_company_id, "deputed_company_name": company.get("deputed_company_name", "")}
+                run = STORE.create([], options)
+                threading.Thread(target=run_worker, args=(run["run_id"], "", ""), daemon=True).start()
+                return self._json({"run_id": run["run_id"], "status": run["status"], "total": 0}, 202)
             if path.startswith("/api/v1/companies/") and path.endswith("/intake-settings"):
                 company_id = path.split("/")[4]
                 if not self._require_access(roles=(ROLE_MASTER_ADMIN, ROLE_SUPER_ADMIN, ROLE_ADMIN), permissions=("intake.settings.manage",), company_id=company_id):
@@ -2443,7 +2499,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 if not self._require_access(roles=(ROLE_MASTER_ADMIN, ROLE_SUPER_ADMIN, ROLE_ADMIN), company_id=text(body.get("company_id"))):
                     return
-                allowed = set(ALLOWED_OPTIONS) | {"employees", "records", "username", "password"}
+                allowed = (set(ALLOWED_OPTIONS) - {"auth_only"}) | {"employees", "records", "username", "password"}
                 unknown = sorted(set(body) - allowed)
                 if unknown:
                     raise ValueError("Unsupported run fields: " + ", ".join(unknown))

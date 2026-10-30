@@ -4,6 +4,8 @@
   "navigation_timeout_ms": 25000,
   "authentication_timeout_ms": 180000,
   "captcha_timeout_ms": 180000,
+  "max_captcha_attempts": 3,
+  "captcha_capture_zoom": 1.0,
   "polling_interval_ms": 1000,
   "max_safe_recovery_attempts": 2,
   "screenshot_on_failure": true,

@@ -16,7 +16,7 @@ npm install
 npm run dev
 ~~~
 
-Open the portal at `http://127.0.0.1:5201`. The desktop UI calls the local API and includes company selection, API inbox review, validation, supervised run monitoring, manual CAPTCHA preview, error handover, and evidence links. Portal selectors and browser workflow code remain in Python/configuration files.
+Open the portal at `http://127.0.0.1:5201`. The desktop UI calls the local API and includes company selection, API inbox review, validation, run monitoring, error handover, and evidence links. Portal selectors and browser workflow code remain in Python/configuration files.
 
 For one-command local operation, use start_local.ps1 and stop_local.ps1. The launcher stops only this project’s API/Vite workers, leaves unrelated project ports untouched, and verifies readiness before reporting the URLs.
 
@@ -35,10 +35,11 @@ Open the React frontend at `http://127.0.0.1:5201`; the backend API listens at `
 
 - `POST /api/v1/auth/login` — validates local application credentials and returns an HS256 JWT plus an HttpOnly cookie.
 - `GET /api/v1/auth/me` and `POST /api/v1/auth/logout` — inspect or clear the current JWT session.
-- `POST /api/v1/runs` — accepts `{ "mode": "MOCK|REAL", "employees": [...] }` and starts one sequential run.
+- `POST /api/v1/runs` — accepts a confirmed REAL run with selected inbox records and starts sequential processing. MOCK is limited to the private test harness.
+- `POST /api/v1/companies/{company_id}/test-signin` — tests the saved credentials, CAPTCHA entry, and Sign In for a selected local company scope without submitting any employee record.
 - `GET /api/v1/runs/{run_id}` — returns authentication state, row progress, results, errors, and event history.
 - `POST /api/v1/runs/{run_id}/stop` — stops at the next safe row boundary.
-- `POST /api/v1/runs/{run_id}/continue` — requests an immediate manual-authentication state check.
+- `POST /api/v1/runs/{run_id}/continue` — requests an immediate authentication-state check.
 - `GET /api/v1/schema` — returns the accepted employee fields.
 - `GET /api/v1/config/validate` — validates selector contracts, company profiles, and approved portal configuration before a run.
 
@@ -54,8 +55,8 @@ Additional platform endpoints:
 
 - `GET /api/v1/companies` and `GET /api/v1/companies/{id}/schema` — company dropdown and field mapping.
 - `GET /api/v1/source/status` — reports which read-only source adapters are configured.
-- `GET /api/v1/source/companies` — returns the Emanage internal-company scope (`varchar_internalclient = 'Internal'`) with the source `company_id` and company code.
-- `GET /api/v1/source/companies/{company_id}/deputed` — returns deputed companies using Emanage's `int_cid -> int_scid` relationship from `im_employeetransitionvalue` and `im_subclient`. The response includes the parent company ID, deputed company ID, and an `ALL` option with ID `0` when available.
+- `GET /api/v1/source/companies` — returns the Emanage internal-company scope (`varchar_internalclient = 'Internal'`) with the source `company_id` and company code. If no external source is configured, it returns access-filtered local company profiles so the portal scope picker remains usable.
+- `GET /api/v1/source/companies/{company_id}/deputed` — returns deputed companies using Emanage's `int_cid -> int_scid` relationship from `im_employeetransitionvalue` and `im_subclient`. The response includes the parent company ID, deputed company ID, and an `ALL` option with ID `0` when available. For a local profile without an external source, it returns the profile's configured deputed company.
 - `GET /api/v1/source/companies/{company_id}/complete-data` — one normalized employee-data contract merged from the source API and read-only database. Optional query parameters are `deputed_company_id` (`0` means all), `employee_code`, `updated_since`, `limit`, and `offset`. This supports polling for employees completed by HRMS onboarding without coupling the future service to the current UI.
 - `POST /api/v1/companies/{id}/ingest` — add/update records in that company’s local inbox.
 - `GET /api/v1/inbox?company={id}` — show incoming records.
@@ -79,7 +80,7 @@ For local startup, create `config/source_data.env` from the example and fill the
 
 If any row or browser step fails, the run records a structured handover instead of silently skipping the problem. Handover categories include `PORTAL_DOWNTIME_OR_NETWORK`, `PORTAL_LAYOUT_CHANGE`, `DUPLICATE_UAN_OR_MEMBER`, `DATA_MISMATCH`, `VALIDATION_ERROR`, and `AUTOMATION_OR_AUTHENTICATION_ERROR`. The bundle contains the affected source rows, row-level messages, workflow step, and local evidence paths. Evidence is stored under `blob_storage/<run_id>/` and the bundle is written to `blob_storage/<run_id>/handover.json`; credentials are never included. Automatic retry is disabled so an operator can verify portal/member status before deciding what to do next. When SMTP settings are configured, the API run sends one email containing all affected rows and unique screenshots; without SMTP settings, the local handover remains the source of truth.
 
-REAL requests must include `confirm_real: true`, employer credentials are loaded only for the selected scope and run, and JWT authentication protects the local API. The private MOCK harness is localhost-only and is not exposed in the user-facing portal. Each run is persisted under `api_runs/<run_id>/` with `run.json`, `audit.jsonl`, and browser evidence. REAL mode is separate and does not automate portal security checkpoints, and neither mode performs approval.
+REAL requests must include `confirm_real: true`, employer credentials are loaded only for the selected scope and run, and JWT authentication protects the local API. The private MOCK harness is localhost-only and is not exposed in the user-facing portal. Each run is persisted under `api_runs/<run_id>/` with `run.json`, `audit.jsonl`, and browser evidence. REAL mode automatically reads the displayed CAPTCHA and signs in, while neither mode performs member approval.
 
 Production-style local safeguards include a `127.0.0.1`/`localhost` bind check, JSON body-size and content-type limits, atomic run-state writes, one active browser run at a time, safe-boundary stop handling, restart recovery that marks unfinished runs `RECOVERY_REQUIRED` instead of resubmitting them, and structured API errors. Login returns an `EPFO_JWT` HttpOnly cookie; API clients may send the same token as `Authorization: Bearer <token>`. Set `EPFO_JWT_SECRET` to a long random local secret so tokens survive service restarts. `EPFO_API_KEY` remains an optional integration fallback:
 
@@ -92,9 +93,8 @@ python backend/api_service.py
 ## Safety behavior
 
 - The browser is visible.
-- In REAL mode, CAPTCHA and any portal security checkpoint are completed manually by the operator; the automation pauses, records the checkpoint, and only verifies the resulting authenticated dashboard.
-- The tool does not solve, crack, bypass, or automatically submit any real CAPTCHA or other portal security control.
-- When REAL CAPTCHA is detected, a visible checkpoint screenshot is saved under the run artifacts and shown in the local monitor for the operator. The CAPTCHA value is never OCRed, extracted, logged, or submitted by automation.
+- In REAL mode, the worker reads the five-character image shown on the EPFO sign-in page, fills the CAPTCHA field, clicks **Sign In**, and verifies the authenticated dashboard. A changed challenge can be retried up to three times.
+- CAPTCHA characters are held in memory for entry and are never written to logs or reports. If the image cannot be read, authentication fails with a clear error.
 - The tool never clicks **Approve** or **Reject**.
 - Each row is checkpointed in `run_log.xlsx`; rerunning skips successful rows unless `--retry-failed` is selected.
 - Portal passwords are encrypted at rest in the local credential database and are never included in logs, reports, evidence, or run state.
@@ -107,11 +107,11 @@ python -m playwright install chromium
 python backend/app.py
 ```
 
-Use the window to select the workbook, enter the employer login ID/password, and click **Start**. The browser opens. Complete the real portal’s security checkpoints manually in the visible browser. The application polls for the resulting EPFO state and continues automatically after it verifies the authenticated dashboard; the Continue button only requests an immediate state check.
+Use the window to select the workbook, enter the employer login ID/password, and click **Start**. The browser opens, fills the displayed CAPTCHA, clicks **Sign In**, and continues after verifying the authenticated dashboard. The Check sign-in state button requests an immediate state check.
 
 ## Authentication state machine
 
-The real mode uses the explicit states `LOGIN_PAGE`, `CAPTCHA_REQUIRED`, `WAITING_FOR_OPERATOR`, `AUTHENTICATION_VERIFY`, `AUTHENTICATED`, `AUTHENTICATION_FAILED`, `SESSION_EXPIRED`, `TIMEOUT`, and `REGISTRATION_READY`. Authentication stops at the manual CAPTCHA checkpoint until the operator completes it and submits the portal login form. Passwords are not written to logs, reports, screenshots, Excel, source code, or configuration.
+The real mode uses the explicit states `LOGIN_PAGE`, `CAPTCHA_REQUIRED`, `CAPTCHA_PROCESSING`, `AUTHENTICATION_VERIFY`, `AUTHENTICATED`, `AUTHENTICATION_FAILED`, `SESSION_EXPIRED`, `TIMEOUT`, and `REGISTRATION_READY`. Authentication fails if OCR cannot read the displayed challenge or if the configured retry limit is reached. Passwords and CAPTCHA entries are not written to logs, reports, screenshots, Excel, source code, or configuration.
 
 Timeouts, polling, screenshots, safe recovery attempts, and authentication mode are configured in `config/settings.json`. Environment variables `EPFO_AUTH_MODE=REAL|MOCK` and `EPFO_MOCK_SCENARIO=SUCCESS|TIMEOUT|SESSION_EXPIRED|AUTHENTICATION_FAILURE` can override the settings for a run. MOCK mode is local-only and never contacts EPFO.
 

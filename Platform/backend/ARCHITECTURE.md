@@ -20,7 +20,7 @@ The service boundaries are kept separate so a future database or blob provider c
 6. The operator explicitly starts a run for valid rows.
 7. Configuration and selector contracts are checked before the browser starts.
 8. Playwright opens a visible EPFO browser session.
-9. Real CAPTCHA is completed manually by the operator; the application does not implement any secondary-code workflow.
+9. The worker reads the displayed five-character CAPTCHA, fills it, and clicks Sign In. It fails explicitly if the image cannot be read.
 10. The worker verifies the authenticated dashboard.
 11. Employees are processed sequentially, one row at a time.
 12. UAN/Aadhaar identity verification and employment fields are entered.

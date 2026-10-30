@@ -26,6 +26,9 @@ class PlaywrightLocator:
     def fill(self, value):
         return self._locator.fill(str(value))
 
+    def input_value(self):
+        return self._locator.input_value()
+
     def type(self, value, delay=0):
         self._locator.fill("")
         return self._locator.press_sequentially(str(value), delay=delay)
@@ -41,6 +44,9 @@ class PlaywrightLocator:
 
     def inner_text(self, timeout=3000):
         return self._locator.inner_text(timeout=timeout)
+
+    def evaluate(self, script):
+        return self._locator.evaluate(script)
 
     def screenshot(self, path=None, type="png"):
         return self._locator.screenshot(path=str(path) if path else None, type=type)

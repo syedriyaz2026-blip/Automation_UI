@@ -16,6 +16,7 @@ from Platform.backend.automation.playwright_page import PlaywrightPage as Page
 from Platform.backend.authentication import AuthState, AuthenticationResult, MockAuthenticationProvider, auth_mode, ensure_auth_environment, mock_scenario
 from PF.backend.portal_config import PortalConfig, PortalConfigurationError
 from PF.backend.captcha_service import CaptchaDetector, CaptchaStatus
+from PF.backend.captcha_solver import CaptchaReadError, read_captcha
 from PF.backend.portal_pages.errors import PortalLayoutChange
 from PF.backend.portal_pages.authentication_page import AuthenticationPage
 from PF.backend.portal_pages.identity_page import IdentityPage
@@ -235,6 +236,14 @@ class EpfoBot:
         self._first(selectors).fill(value)
         self._demo_wait()
 
+    def _type_verified(self, selectors: list[str], value: str):
+        """Use keyboard events and confirm the portal retained the entered value."""
+        locator = self._first(selectors)
+        locator.click()
+        locator.type(value, delay=50)
+        if locator.input_value() != value:
+            raise PortalLayoutChange("PORTAL_LAYOUT_CHANGE: login field did not retain the entered value.")
+
     def _click(self, selectors: list[str]):
         self._first(selectors).click()
         self._demo_wait()
@@ -316,7 +325,7 @@ class EpfoBot:
         try:
             self.artifact_dir.mkdir(parents=True, exist_ok=True)
             # Hide secrets in the rendered page without reading or logging their values.
-            self.page.add_style_tag(content="input[type='password'] { color: transparent !important; text-shadow: none !important; }")
+            self.page.add_style_tag(content="input[type='password'], input[name='captcha'], #captcha { color: transparent !important; text-shadow: none !important; }")
             target = self.artifact_dir / f"authentication_{state.value.lower()}.png"
             self.page.screenshot(path=str(target), full_page=True)
             self.last_auth_screenshot = str(target)
@@ -327,10 +336,10 @@ class EpfoBot:
             return ""
 
     def authenticate(self, on_state: Optional[Callable[[AuthState, str], None]] = None, continue_event=None) -> AuthenticationResult:
-        """Wait for the operator's manual CAPTCHA completion and verify the dashboard.
+        """Fill the displayed CAPTCHA, submit sign in, and verify the dashboard.
 
         Authentication is intentionally limited to employer ID, password, CAPTCHA,
-        and dashboard verification. No secondary-code workflow is implemented.
+        and dashboard verification.
         """
         mode = auth_mode(self.settings)
         ensure_auth_environment(self.settings, mode)
@@ -348,21 +357,17 @@ class EpfoBot:
         auth_deadline = time.monotonic() + int(self.settings.get("authentication_timeout_ms", 180000)) / 1000
         captcha_deadline = None
         last_state = None
+        attempted_fingerprints: set[str] = set()
+        max_attempts = max(1, int(self.settings.get("max_captcha_attempts", 3)))
         interval = max(0.2, int(self.settings.get("polling_interval_ms", 1000)) / 1000)
 
         while time.monotonic() < auth_deadline:
             state = self._detect_auth_state()
             if state != last_state:
-                previous_state = last_state
                 last_state = state
                 if state == AuthState.CAPTCHA_REQUIRED:
                     captcha_deadline = time.monotonic() + int(self.settings.get("captcha_timeout_ms", 180000)) / 1000
-                    observation = self._observe_captcha(capture=True)
-                    screenshot = observation.evidence_path or self._save_auth_screenshot(AuthState.CAPTCHA_REQUIRED)
-                    transition(state, "CAPTCHA detected. Complete it manually in the visible EPFO browser; no solver or bypass is used.")
-                    transition(AuthState.WAITING_FOR_OPERATOR, "Waiting for the operator to complete CAPTCHA and click the portal login button.")
-                    if screenshot:
-                        self.log(f"CAPTCHA checkpoint evidence saved: {screenshot}")
+                    transition(state, "CAPTCHA detected; reading the displayed image.")
                 elif state == AuthState.AUTHENTICATED:
                     self._assert_contract("authenticated_dashboard")
                     transition(AuthState.AUTHENTICATION_VERIFY, "Authenticated controls detected; verifying the expected dashboard.")
@@ -372,7 +377,7 @@ class EpfoBot:
                     transition(AuthState.AUTHENTICATED, "Authenticated EPFO dashboard confirmed.")
                     self.capture_evidence("After Login")
                     transition(AuthState.REGISTRATION_READY, "Authentication checkpoint complete; registration may continue.")
-                    return AuthenticationResult(AuthState.REGISTRATION_READY, "Manual authentication succeeded.")
+                    return AuthenticationResult(AuthState.REGISTRATION_READY, "Automated sign in succeeded.")
                 elif state == AuthState.AUTHENTICATION_FAILED:
                     error_type, message = self._classify_auth_failure(self._page_text())
                     return AuthenticationResult(state, message, error_type, self._save_auth_screenshot(state))
@@ -381,13 +386,42 @@ class EpfoBot:
                 elif state == AuthState.UNEXPECTED_PORTAL_STATE:
                     transition(state, "Expected login, CAPTCHA, or dashboard state was not found.")
 
+            if state == AuthState.CAPTCHA_REQUIRED:
+                try:
+                    image_bytes, fingerprint = self.captcha.image_bytes()
+                except Exception:
+                    return AuthenticationResult(AuthState.AUTHENTICATION_FAILED, "CAPTCHA image could not be captured.", "CAPTCHA_READ_FAILED", self._save_auth_screenshot(AuthState.AUTHENTICATION_FAILED))
+                if fingerprint not in attempted_fingerprints:
+                    if len(attempted_fingerprints) >= max_attempts:
+                        return AuthenticationResult(AuthState.AUTHENTICATION_FAILED, "CAPTCHA was rejected after the configured number of attempts.", "CAPTCHA_INVALID", self._save_auth_screenshot(AuthState.AUTHENTICATION_FAILED))
+                    try:
+                        answer = read_captcha(image_bytes)
+                    except CaptchaReadError as exc:
+                        return AuthenticationResult(AuthState.AUTHENTICATION_FAILED, str(exc), "CAPTCHA_READ_FAILED", self._save_auth_screenshot(AuthState.AUTHENTICATION_FAILED))
+                    transition(AuthState.CAPTCHA_PROCESSING, f"Filling CAPTCHA and clicking Sign In (attempt {len(attempted_fingerprints) + 1} of {max_attempts}).")
+                    try:
+                        self._type_verified(self._auth_selectors("captcha_input", []), answer)
+                        if self.captcha.image_bytes()[1] != fingerprint:
+                            transition(AuthState.CAPTCHA_REQUIRED, "CAPTCHA image changed during entry; reading the new image.")
+                            continue
+                        if not self._first(self._auth_selectors("login_username", [])).input_value() or not self._first(self._auth_selectors("login_password", [])).input_value():
+                            raise PortalLayoutChange("PORTAL_LAYOUT_CHANGE: login credentials are empty before Sign In.")
+                        attempted_fingerprints.add(fingerprint)
+                        self._first(self._auth_selectors("login_submit", [])).click(timeout=int(self.settings.get("navigation_timeout_ms", 25000)))
+                    except Exception:
+                        return AuthenticationResult(AuthState.AUTHENTICATION_FAILED, "CAPTCHA field or Sign In button could not be used.", "PORTAL_LAYOUT_CHANGE", self._save_auth_screenshot(AuthState.AUTHENTICATION_FAILED))
+                    # Never log, persist, or return the recognized characters.
+                    del answer
+                elif "invalid captcha" in self._page_text():
+                    return AuthenticationResult(AuthState.AUTHENTICATION_FAILED, "EPFO rejected the CAPTCHA and did not provide a new challenge.", "CAPTCHA_INVALID", self._save_auth_screenshot(AuthState.AUTHENTICATION_FAILED))
+
             if state == AuthState.CAPTCHA_REQUIRED and captcha_deadline and time.monotonic() > captcha_deadline:
                 self.captcha.mark_expired()
                 return AuthenticationResult(AuthState.TIMEOUT, "CAPTCHA checkpoint timed out; run stopped safely.", "CAPTCHA Timeout", self._save_auth_screenshot(AuthState.TIMEOUT))
             operator_signal = continue_event is not None and continue_event.is_set()
             if operator_signal:
                 continue_event.clear()
-                self.log("Operator requested an immediate authentication-state check; the operator remains responsible for submitting the portal login form.")
+                self.log("Immediate authentication-state check requested.")
             time.sleep(interval)
 
         return AuthenticationResult(AuthState.TIMEOUT, "Authentication timed out; run stopped safely.", "Authentication Timeout", self._save_auth_screenshot(AuthState.TIMEOUT))
@@ -410,11 +444,10 @@ class EpfoBot:
             self._type_demo(self._auth_selectors("login_password", ["input[name='password']"]), password)
             transition(AuthState.CAPTCHA_REQUIRED, "Mock CAPTCHA checkpoint detected.")
             transition(AuthState.CAPTCHA_PROCESSING, "Submitting deterministic mock CAPTCHA.")
-            # MOCK only: read the CAPTCHA displayed in the current page session.
-            # REAL mode never enters this branch and never reads CAPTCHA content.
+            # The local mock renders the answer as text for deterministic tests.
             if self._visible([".captcha-image"]):
                 captcha = self.page.locator(".captcha-image").inner_text().strip()
-            self._type_demo(self._auth_selectors("captcha", ["input[name='captcha']"]), captcha)
+            self._type_demo(self._auth_selectors("captcha_input", ["input[name='captcha']"]), captcha)
             self._click(self._auth_selectors("login_submit", ["button[type='submit']"]))
             if scenario in {"CAPTCHA_INVALID", "CAPTCHA_TIMEOUT"}:
                 message = "Mock CAPTCHA failed or timed out."
@@ -464,11 +497,22 @@ class EpfoBot:
 
     def _confirm_alert_if_present(self):
         """Dismiss EPFO's informational home-page modal, if it is rendered."""
+        if auth_mode(self.settings) != "MOCK":
+            try:
+                # EPFO shows this modal shortly after DOMContentLoaded. Waiting
+                # for it avoids a late overlay intercepting the username click.
+                self.page.locator("#mainHomePageAlertModal").wait_for(state="visible", timeout=5000)
+            except Exception:
+                pass
         for selector in ("#btnCloseModal", "button[id*='btnCloseModal' i]", "#mainHomePageAlertModal button"):
             try:
                 control = self.page.locator(selector)
                 if control.is_visible(timeout=350):
                     control.click(timeout=1500)
+                    try:
+                        self.page.locator("#mainHomePageAlertModal").wait_for(state="hidden", timeout=3000)
+                    except Exception:
+                        pass
                     self.log("EPFO security alert acknowledged; login panel is available.")
                     self.page.wait_for_timeout(250)
                     return True
@@ -511,17 +555,17 @@ class EpfoBot:
             screenshot = self._save_error_screenshot("access_denied", "Open login page")
             raise PortalLayoutChange("PORTAL_ACCESS_BLOCKED: EPFO/WAF denied this browser session before login.", screenshot)
         self._confirm_alert_if_present()
-        self.page.set_page_zoom(float(self.settings.get("captcha_capture_zoom", 0.5)))
-        self.log("EPFO alert handled; page zoom set for backend evidence capture.")
+        self.page.set_page_zoom(float(self.settings.get("captcha_capture_zoom", 1.0)))
+        self.log("EPFO alert handled; login controls are ready.")
         self._assert_contract("login")
         try:
-            self._fill(self._selectors("login_username", ["input[name='username']", "#username", "input[placeholder*='User']", "input[type='text']"]), username)
-            self._fill(self._selectors("login_password", ["input[name='password']", "#password", "input[type='password']"]), password)
+            self._type_verified(self._selectors("login_username", ["#username1", "input[name='username']", "input[placeholder*='User']"]), username)
+            self._type_verified(self._selectors("login_password", ["#password", "input[name='password']"]), password)
         except PortalLayoutChange as exc:
             screenshot = exc.screenshot or self._save_layout_screenshot("login")
             raise PortalLayoutChange(str(exc), screenshot) from exc
         self.capture_evidence("Before Login")
-        self.log("Login ID and password filled. Complete CAPTCHA manually in the browser.")
+        self.log("Login ID and password filled; CAPTCHA and Sign In will be handled automatically.")
 
     def wait_for_manual_login(self):
         self.page.wait_for_url(re.compile(r"unifiedportal-emp\.epfindia\.gov\.in/epfo/.*(?!/epfo/$)"), timeout=0)

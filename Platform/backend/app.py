@@ -86,14 +86,14 @@ class App:
         self.pause_btn.pack(side="left", padx=4)
         self.stop_btn = ttk.Button(controls, text="Stop", command=self.stop, state="disabled")
         self.stop_btn.pack(side="left", padx=4)
-        self.continue_btn = ttk.Button(controls, text="Refresh CAPTCHA checkpoint", command=self.manual_login_event.set, state="disabled")
+        self.continue_btn = ttk.Button(controls, text="Check sign-in state", command=self.manual_login_event.set, state="disabled")
         self.continue_btn.pack(side="left", padx=8)
         self.progress = ttk.Progressbar(controls, mode="indeterminate")
         self.progress.pack(side="right", fill="x", expand=True, padx=8)
 
         self.log_box = tk.Text(frame, height=25, wrap="word", state="disabled")
         self.log_box.pack(fill="both", expand=True)
-        ttk.Label(frame, text="CAPTCHA is always manual. Never share the workbook or credentials unnecessarily.").pack(anchor="w", pady=(8, 0))
+        ttk.Label(frame, text="CAPTCHA entry and Sign In run automatically. Never share the workbook or credentials unnecessarily.").pack(anchor="w", pady=(8, 0))
 
     def browse(self):
         path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xlsm"), ("All files", "*.*")])
@@ -245,7 +245,7 @@ class App:
                     if mock_server:
                         mock_server.stop()
                     return
-                self.log("Manual authentication verified; continuing to member registration.")
+                self.log("Authentication verified; continuing to member registration.")
                 for record in valid:
                     while self.pause_event.is_set() and not self.stop_event.is_set():
                         time.sleep(0.25)

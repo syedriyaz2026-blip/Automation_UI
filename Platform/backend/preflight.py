@@ -56,6 +56,8 @@ def run_preflight(workbook: Path, artifact_dir: Path, settings: dict, *, check_p
             "login_username",
             "login_password",
             "login_submit",
+            "captcha",
+            "captcha_input",
             "member_menu",
             "register_individual_menu",
             "uan",
@@ -69,6 +71,15 @@ def run_preflight(workbook: Path, artifact_dir: Path, settings: dict, *, check_p
         _check(checks, "Critical selector configuration", not missing, "Missing: " + ", ".join(missing))
     except Exception as exc:
         _check(checks, "Critical selector configuration", False, str(exc))
+    if mode == "REAL":
+        try:
+            from rapidocr import RapidOCR  # noqa: F401
+            import cv2  # noqa: F401
+            from PIL import Image  # noqa: F401
+            model = Path(__file__).resolve().parents[2] / "PF" / "backend" / "models" / "ocr-glyphs-python.json"
+            _check(checks, "CAPTCHA OCR available", model.is_file(), "Trained glyph model, Pillow, RapidOCR, and OpenCV installed" if model.is_file() else "Trained glyph model is missing")
+        except ImportError as exc:
+            _check(checks, "CAPTCHA OCR available", False, f"Install backend requirements: {type(exc).__name__}")
     if mode == "REAL" and check_portal:
         try:
             request = urllib.request.Request(settings["portal_url"], method="GET", headers={"User-Agent": "EPFO-Automation-Preflight/1.0"})

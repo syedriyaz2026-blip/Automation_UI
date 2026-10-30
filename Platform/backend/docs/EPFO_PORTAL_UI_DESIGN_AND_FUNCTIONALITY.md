@@ -93,7 +93,7 @@ The local operations dashboard currently keeps its separate purple brand system.
 - Unlock Account link.
 - Employer Sign In and Uncovered Principal Employer Sign In links.
 
-The automation product must preserve the live CAPTCHA as a manual security checkpoint. It must capture the checkpoint for evidence, pause, and continue only after the operator completes it. It must never OCR, crack, bypass, or submit a real CAPTCHA automatically.
+The PF worker reads the displayed five-character CAPTCHA, fills its input, clicks **Sign In**, and continues only after it verifies the authenticated dashboard. It fails explicitly when the image cannot be read or the configured retry limit is reached.
 
 ### 4. Information content
 
@@ -121,7 +121,7 @@ The local product adds operational screens around the portal workflow:
 5. **Validation results** - show all errors for each row; no silent trimming or correction.
 6. **Start insertion** - enabled only when all selected rows are valid and the operator explicitly starts the run.
 7. **Live process** - show authentication state, current employee, row progress, events, pause/stop state, and safe row boundaries.
-8. **CAPTCHA checkpoint** - show the captured live checkpoint and clear manual-action instruction.
+8. **CAPTCHA sign in** - show recognition and submission status without displaying the recognized characters.
 9. **Registration result** - show `Registered - Pending Approval`; the automation stops before Approve or Reject.
 10. **Error handover** - show row, employee code, category, workflow step, message, and proof links.
 11. **Email notification** - show whether SMTP accepted the consolidated failure email and how many evidence files were attached.

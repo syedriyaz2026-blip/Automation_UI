@@ -23,7 +23,12 @@ function Stop-LocalProcess([string]$pattern) {
 }
 
 # Stop only this project's workers; unrelated projects are left untouched.
-Stop-LocalProcess '*api_service.py*'
+$apiTargets = Get-CimInstance Win32_Process | Where-Object {
+  $_.Name -match '^python(?:\.exe)?$' -and $_.CommandLine -match ' -m Platform\.backend\.api_service(?:\s|$)'
+}
+foreach ($target in $apiTargets) {
+  Stop-Process -Id $target.ProcessId -Force -ErrorAction SilentlyContinue
+}
 Stop-LocalProcess (('*' + $frontend + '*vite*').Replace('/', '\'))
 Start-Sleep -Milliseconds 500
 

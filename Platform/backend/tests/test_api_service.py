@@ -76,6 +76,22 @@ def test_run_store_does_not_persist_credentials(tmp_path, monkeypatch):
     assert saved["stop_before_approval"] is True
 
 
+def test_signin_only_run_authenticates_without_submitting_records(tmp_path, monkeypatch):
+    monkeypatch.setattr(api_service, "RUN_ROOT", tmp_path)
+    store = api_service.RunStore()
+    monkeypatch.setattr(api_service, "STORE", store)
+    run = store.create([], {"mode": "MOCK", "auth_only": True, "headless": True, "demo_delay_ms": 0, "typing_delay_ms": 0})
+
+    api_service.run_worker(run["run_id"], "", "")
+
+    finished = store.get(run["run_id"])
+    assert finished["status"] == "COMPLETED"
+    assert finished["auth_state"] == "REGISTRATION_READY"
+    assert finished["total"] == finished["completed"] == 0
+    assert finished["results"] == []
+    assert not any(event["event"] == "ROW_STARTED" for event in finished["events"])
+
+
 def test_run_store_persists_audit_and_error_artifacts(tmp_path, monkeypatch):
     monkeypatch.setattr(api_service, "RUN_ROOT", tmp_path)
     store = api_service.RunStore()

@@ -1,13 +1,9 @@
-"""Safe CAPTCHA checkpoint handling for the EPFO browser worker.
-
-This module deliberately does not OCR, solve, submit, or bypass CAPTCHA.  It
-only observes configured controls, fingerprints the rendered challenge for
-change detection, and stores redacted diagnostic evidence for an operator.
-"""
+"""Detect the rendered EPFO CAPTCHA and track challenge changes."""
 
 from __future__ import annotations
 
 import hashlib
+import base64
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -68,7 +64,7 @@ class _FrameElement:
 
 
 class CaptchaDetector:
-    """Detect visual CAPTCHA controls through the Selenium page abstraction."""
+    """Detect the configured image control through the browser page adapter."""
 
     def __init__(
         self,
@@ -116,6 +112,27 @@ class CaptchaDetector:
                 try: driver.switch_to.default_content()
                 except Exception: pass
         return None
+
+    def image_bytes(self) -> tuple[bytes, str]:
+        """Return native image pixels and fingerprint without writing them."""
+        locator = self._visible_locator()
+        if locator is None:
+            raise RuntimeError("CAPTCHA image is not visible.")
+        try:
+            encoded = locator.evaluate("""image => {
+                if (!image.complete || !image.naturalWidth) throw Error('CAPTCHA image is not loaded');
+                const canvas = document.createElement('canvas');
+                canvas.width = image.naturalWidth;
+                canvas.height = image.naturalHeight;
+                canvas.getContext('2d').drawImage(image, 0, 0);
+                return canvas.toDataURL('image/png').split(',')[1];
+            }""")
+            data = base64.b64decode(encoded)
+        except Exception:
+            data = locator.screenshot(type="png")
+        if not data:
+            raise RuntimeError("CAPTCHA image could not be captured.")
+        return data, hashlib.sha256(data).hexdigest()[:16]
 
     @staticmethod
     def _fingerprint(locator) -> str:
@@ -170,13 +187,13 @@ class CaptchaDetector:
             CaptchaType.IMAGE,
             fingerprint=fingerprint,
             evidence_path=evidence,
-            message="CAPTCHA detected; manual operator completion is required.",
+            message="CAPTCHA image detected.",
             observed_at=observed_at,
         )
         self.last_observation = result
         return result
 
-    def mark_expired(self, message: str = "CAPTCHA checkpoint expired before operator completion.") -> CaptchaObservation:
+    def mark_expired(self, message: str = "CAPTCHA checkpoint expired before completion.") -> CaptchaObservation:
         result = CaptchaObservation(CaptchaStatus.EXPIRED, CaptchaType.IMAGE, message=message, observed_at=self._now())
         self.last_observation = result
         return result

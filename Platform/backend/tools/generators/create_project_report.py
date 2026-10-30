@@ -162,11 +162,11 @@ r = subtitle.add_run("Complete process, data specification, validation, error ha
 r.font.size = Pt(13)
 r.font.color.rgb = RGBColor.from_string(BLUE)
 paragraph(doc, "Purpose: define the system being built for daily bulk EPFO member registration from Excel, including the exact data contract, all pre-submission validations, browser workflow, failure evidence, reporting, email notification, and the point where the automation must stop.")
-paragraph(doc, "Primary operating rule: the system may automate registration up to the Pending Approval state. CAPTCHA and final approval remain under the operator's control. The automation must never click Approve or Reject.")
+paragraph(doc, "Primary operating rule: the system may automate sign-in and registration up to the Pending Approval state. Final approval remains under the operator's control. The automation must never click Approve or Reject.")
 table(doc, ["Item", "Current decision"], [
     ("Input", "One Excel workbook containing the approved 15-column format"),
     ("Automation", "Visible Playwright browser session with configurable selectors"),
-    ("Security checkpoint", "CAPTCHA completed manually"),
+    ("Security checkpoint", "Displayed CAPTCHA read and submitted automatically"),
     ("Final automated state", "Registered - Pending Approval"),
     ("Final approval", "Manual only; not automated"),
     ("Evidence", "Run report, row-level error details, screenshots, optional email"),
@@ -180,12 +180,12 @@ for item in [
 
 heading(doc, "1 Objective and Scope", 1)
 paragraph(doc, "The system is designed for a recurring HR or payroll operation in which a daily employee list is uploaded and each employee is registered in the EPFO employer portal. The application reads the workbook, validates the complete row before interacting with the portal, processes valid rows one at a time, records the result, and stops each row at Pending Approval.")
-paragraph(doc, "The system is not an EPFO API integration. It uses browser automation because no API is available in the current process. The browser remains visible so the operator can complete security challenges and observe the run.")
+paragraph(doc, "The system is not an EPFO API integration. It uses browser automation because no API is available in the current process. The browser remains visible so the operator can observe and stop the run.")
 heading(doc, "Included", 2)
-for x in ["Excel upload and strict schema checking", "Row-level data validation before portal insertion", "Duplicate detection inside the workbook", "Manual CAPTCHA checkpoint", "Configurable EPFO URLs and selectors", "Retry and resume behavior", "Error classification and screenshots", "Run-log workbook and optional consolidated email", "Hard stop before approval"]:
+for x in ["Excel upload and strict schema checking", "Row-level data validation before portal insertion", "Duplicate detection inside the workbook", "Automatic CAPTCHA entry and Sign In", "Configurable EPFO URLs and selectors", "Retry and resume behavior", "Error classification and screenshots", "Run-log workbook and optional consolidated email", "Hard stop before approval"]:
     bullet(doc, x)
 heading(doc, "Not included", 2)
-for x in ["Solving or bypassing CAPTCHA", "Bypassing other authentication controls", "Automatic Approve or Reject actions", "Digital signature or DSC approval", "Silent correction of employee data", "Submitting a row when validation has failed"]:
+for x in ["Bypassing other authentication controls", "Automatic Approve or Reject actions", "Digital signature or DSC approval", "Silent correction of employee data", "Submitting a row when validation has failed"]:
     bullet(doc, x)
 
 heading(doc, "2 End to End Process", 1)
@@ -310,7 +310,7 @@ paragraph(doc, "When EPFO changes a page, first reproduce the issue using a sing
 heading(doc, "9 Security and Operational Controls", 1)
 for x in [
     "Passwords are entered at runtime and are not written to the workbook, report, or source code.",
-    "CAPTCHA remains manual and is never solved or bypassed by the automation.",
+    "The worker reads only the CAPTCHA displayed in its current browser session, without logging the recognized characters.",
     "The original uploaded workbook is preserved; reports are written to separate files.",
     "The browser is visible during live work so the operator can observe and stop the run.",
     "A future Stop or Emergency Stop control should close the current browser safely and preserve the checkpoint.",
@@ -326,8 +326,7 @@ for step in [
     "Open the application and select the daily workbook.",
     "Enter the employer login ID and password.",
     "Click Start processing.",
-    "Complete CAPTCHA manually in the visible browser.",
-    "Submit the portal login form manually after CAPTCHA completion.",
+    "Watch the worker read the displayed CAPTCHA and submit Sign In automatically.",
     "Monitor the application log for row progress and any stopped rows.",
     "Review the run-log workbook and the artifacts folder.",
     "Review and manually approve eligible Pending Approval records in EPFO."
@@ -341,7 +340,7 @@ acceptance = [
     ("Alignment", "Values are mapped by approved header names and the source row is preserved."),
     ("Validation", "Every error in an invalid row is reported together; the row is not submitted."),
     ("Duplicate protection", "Duplicate UAN/Aadhaar rows are not submitted."),
-    ("Security", "CAPTCHA requires manual action."),
+    ("Security", "CAPTCHA entry and Sign In complete automatically; unreadable challenges fail explicitly."),
     ("Registration", "Valid rows can proceed through verification and Save under supervised testing."),
     ("Approval boundary", "The code contains no automated Approve or Reject action."),
     ("Evidence", "Each portal failure has a row-and-step screenshot; all failures can be emailed together."),
