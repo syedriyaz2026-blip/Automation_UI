@@ -408,8 +408,12 @@ def validate_esi_records(
         if errors:
             rows.append({"row": index, "employee_name": item.get("name", ""), "valid": False, "errors": errors, "message": "; ".join(error["message"] for error in errors)})
     public = [{key: value for key, value in item.items() if key != "source_payload"} for item in normalized]
-    invalid_numbers = {str(row["row"]) for row in rows}
-    valid_rows = [item for item in public if str(item.get("row_number", "")) not in invalid_numbers]
+    # Validation rows use the normalized list position for reporting, while
+    # ``row_number`` preserves the source workbook's original Row_Num1.  Do
+    # not compare those two coordinate systems: an archive workbook can start
+    # at any source row and an invalid row must never leak into valid_rows.
+    invalid_indexes = {int(row["row"]) for row in rows}
+    valid_rows = [item for index, item in enumerate(public, start=1) if index not in invalid_indexes]
     return {
         "total": len(normalized),
         "valid": len(normalized) - len(rows),
