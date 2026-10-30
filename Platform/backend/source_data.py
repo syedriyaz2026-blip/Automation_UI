@@ -839,16 +839,18 @@ class CompleteEmployeeDataService:
         offset: int = 0,
         updated_since: datetime | None = None,
         joined_since: datetime | None = None,
+        recent_joining_only: bool = True,
     ) -> dict[str, Any]:
         limit = min(max(int(limit), 1), 5000)
         offset = max(int(offset), 0)
         warnings: list[str] = []
-        # PF intake is deliberately limited to new joiners. Even if a caller
-        # supplies an older timestamp, the service never widens the window
-        # beyond the last 48 hours.
-        minimum_joining_cutoff = _recent_joining_cutoff()
-        requested_joining_cutoff = _as_naive_datetime(joined_since)
-        joining_cutoff = max(requested_joining_cutoff or minimum_joining_cutoff, minimum_joining_cutoff)
+        # The normal PF intake flow is limited to recent joiners. The display-
+        # only source sync can opt out and apply its own created/updated window.
+        joining_cutoff = None
+        if recent_joining_only:
+            minimum_joining_cutoff = _recent_joining_cutoff()
+            requested_joining_cutoff = _as_naive_datetime(joined_since)
+            joining_cutoff = max(requested_joining_cutoff or minimum_joining_cutoff, minimum_joining_cutoff)
         company_row = self.database.company(company_id) if self.database.configured else None
         company_code = _text(company_row.get("company_code")) if company_row else ""
         short_name = _text(company_row.get("short_name")) if company_row else ""
@@ -864,10 +866,11 @@ class CompleteEmployeeDataService:
         # The PF master API is not guaranteed to enforce the joining-date
         # filter, so apply the same strict boundary before merging it with
         # the read-only employee scope.
-        api_rows = [
-            item for item in api_rows
-            if (_as_naive_datetime(_first(item, "DOJ", "DateOfJoining", "JoiningDate", "doj")) or datetime.min) >= joining_cutoff
-        ]
+        if joining_cutoff is not None:
+            api_rows = [
+                item for item in api_rows
+                if (_as_naive_datetime(_first(item, "DOJ", "DateOfJoining", "JoiningDate", "doj")) or datetime.min) >= joining_cutoff
+            ]
 
         db_rows: list[dict[str, Any]] = []
         if self.database.configured:

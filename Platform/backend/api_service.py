@@ -2300,14 +2300,16 @@ class Handler(BaseHTTPRequestHandler):
                 if deputed_source_id is None:
                     return self._json(error_response("INVALID_DEPUTED_COMPANY_ID", "deputed_company_id must be a non-negative integer."), 400)
                 try:
+                    created_since = datetime.now().replace(tzinfo=None) - timedelta(days=7)
                     source_result = SOURCE_DATA.complete(
                         source_company_id,
                         deputed_source_id,
                         text(body.get("employee_code")),
                         _safe_int_query(str(body.get("limit", 500)), 500),
                         _safe_int_query(str(body.get("offset", 0)), 0),
+                        created_since,
                         None,
-                        None,
+                        recent_joining_only=False,
                     )
                 except SourceDataError as exc:
                     return self._json(error_response("SOURCE_UNAVAILABLE", str(exc)), 503)
@@ -2357,16 +2359,15 @@ class Handler(BaseHTTPRequestHandler):
                     invalid=scan["invalid"],
                     message="Source API records converted, validated, and stored in the scoped inbox.",
                 )
-                automatic = auto_process_company(company_id, deputed_company_id)
                 return self._json({
                     "company_id": company_id,
                     "deputed_company_id": deputed_company_id,
                     "source": "source_api",
                     "queried_at": now(),
-                    "joining_window_hours": 48,
+                    "created_window_days": 7,
+                    "processing": {"automatic": False, "message": "PF source records were fetched for display only; no automation was started."},
                     "validation": scan,
                     "ingest": ingest_result,
-                    "auto_process": automatic,
                     "source_metadata": {
                         "count": source_result.get("count", len(raw_records)),
                         "warnings": source_result.get("warnings", []),
