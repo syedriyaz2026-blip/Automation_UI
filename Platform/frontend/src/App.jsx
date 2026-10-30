@@ -699,7 +699,7 @@ function ScopePicker({
               <span className="section-kicker">Processing scope</span>
               <strong>Choose Company and Deputed Company</strong>
             </div>
-            <span>{companyId && deputedCompanyId ? "Ready" : "Required"}</span>
+            <span>{companyId && (deputedCompanyId || deputedCompanies.length === 0) ? "Ready" : "Required"}</span>
           </div>
           <div className="scope-picker-grid">
             <section className="scope-picker-column" aria-label="Company list">
@@ -817,7 +817,7 @@ function ScopePicker({
             </section>
           </div>
           <div className="scope-picker-footer">
-            <span>Select both companies, then Apply.</span>
+            <span>{deputedCompanies.length ? "Select both companies, then Apply." : "No deputed company is configured; select the Company, then Apply."}</span>
             <div className="scope-picker-footer-actions">
               <button type="button" onClick={cancelPicker}>Cancel</button>
               <Button
@@ -827,7 +827,7 @@ function ScopePicker({
                   onApply();
                   setOpen(false);
                 }}
-                disabled={!companyId || !deputedCompanyId}
+                disabled={!companyId || (deputedCompanies.length > 0 && !deputedCompanyId)}
               >
                 Apply
               </Button>
@@ -953,7 +953,7 @@ function App() {
     }
   }
   async function loadQueue(id = companyId, activeSettings = intakeSettings) {
-    if (!id || !deputedCompanyId) return;
+    if (!id) return;
     const localData = await api(
       (isEsi ? "/api/v1/esi/inbox?company=" : "/api/v1/inbox?company=") + encodeURIComponent(id) +
         "&deputed_company_id=" + encodeURIComponent(deputedCompanyId),
@@ -1097,7 +1097,7 @@ function App() {
     if (user) loadCompanies().catch((error) => setNotice(message(error)));
   }, [user]);
   useEffect(() => {
-    if (!scopeApplied || !companyId || !deputedCompanyId || !user) {
+    if (!scopeApplied || !companyId || (!deputedCompanyId && deputedCompanies.length > 0) || !user) {
       setIntakeSettings({ ...DEFAULT_INTAKE_SETTINGS });
       return;
     }
@@ -1112,7 +1112,7 @@ function App() {
         setNotice(message(error));
       }
     })();
-  }, [companyId, deputedCompanyId, scopeApplied, user, activeModule]);
+  }, [companyId, deputedCompanyId, deputedCompanies.length, scopeApplied, user, activeModule]);
   useEffect(() => {
     if (role === "user") {
       const firstAllowed = ["PF", "ESI"].find((module) => canModule(module));
@@ -1393,8 +1393,8 @@ function App() {
   }
   async function syncSourceData() {
     // PF and ESI intake is API-only and automatic for the selected scope.
-    if (!companyId || !deputedCompanyId) {
-      setNotice("Select both Company and Deputed Company before fetching API data.");
+    if (!companyId) {
+      setNotice("Select a Company before fetching API data.");
       return;
     }
     setApiSyncLoading(true);
@@ -1403,7 +1403,7 @@ function App() {
       const result = await api(
         (isEsi ? "/api/v1/esi/companies/" : "/api/v1/companies/") + encodeURIComponent(companyId) + "/sync-source",
         json({
-          deputed_company_id: deputedCompanyId,
+          deputed_company_id: deputedCompanyId || "",
           company_name: companyName,
           deputed_company_name: deputedCompanyName,
           limit: 500,
@@ -1543,7 +1543,7 @@ function App() {
   const authEvent = [...(run && run.events ? run.events : [])]
     .reverse()
     .find((item) => item.state === "CAPTCHA_REQUIRED" && item.screenshot);
-  const scopeReady = Boolean(scopeApplied && companyId && deputedCompanyId);
+  const scopeReady = Boolean(scopeApplied && companyId && (deputedCompanyId || deputedCompanies.length === 0));
   const queueRecords = records.filter((item) => {
     if (queueFilter === "pending") {
       return ["NEW", "AUTO_QUEUED", "Queued", "API_VALIDATED", "PROCESSING", "AUTHENTICATING", "RETRY_QUEUED", "ESI_NEW", "ESI_PROCESSING", "ESI_RETRY_QUEUED", "PENDING_AUTOMATION"].includes(item.status);
@@ -2133,11 +2133,11 @@ function App() {
       <div
         className={
           "workspace " +
-          (scopeApplied && deputedCompanyId ? "nav-open " : "nav-hidden ") +
+          (scopeReady ? "nav-open " : "nav-hidden ") +
           (navExpanded ? "nav-expanded" : "nav-collapsed")
         }
       >
-        {scopeApplied && deputedCompanyId && <aside className="sidebar">
+        {scopeReady && <aside className="sidebar">
           <div className="sidebar-header">
              <span className="nav-text">Workspace</span>
             <button
@@ -2274,7 +2274,7 @@ function App() {
         <main
           className={
             "content " +
-            (!(scopeApplied && deputedCompanyId) ? "scope-locked" : "")
+            (!scopeReady ? "scope-locked" : "")
           }
         >
           {false ? (

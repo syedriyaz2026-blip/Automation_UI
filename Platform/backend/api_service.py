@@ -2296,8 +2296,6 @@ class Handler(BaseHTTPRequestHandler):
                 if source_company_id is None:
                     return self._json(error_response("INVALID_COMPANY_ID", "Source API synchronization requires a numeric company_id."), 400)
                 deputed_company_id = text(body.get("deputed_company_id"))
-                if not deputed_company_id:
-                    return self._json(error_response("VALIDATION_ERROR", "deputed_company_id is required for source synchronization."), 400)
                 if not self._require_intake_module(company_id, deputed_company_id, "api"):
                     return
                 deputed_source_id = _as_optional_scope_id(deputed_company_id)
