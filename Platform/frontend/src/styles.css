@@ -270,6 +270,10 @@ button, input, select { font: inherit; }
 .workflow-step.complete { color: #16835b; }
 .workflow-step.complete > span { border-color: #b9e8ca; background: #ecfdf3; color: #16835b; }
 .columns { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(360px, .8fr); gap: 18px; }
+.background-monitor-panel { margin-bottom: 18px; }
+.background-monitor-summary { display: flex; flex-wrap: wrap; gap: 18px; color: #77788d; font-size: 11px; }
+.background-monitor-summary span { display: grid; gap: 3px; }
+.background-monitor-summary strong { color: #292653; font-size: 13px; }
 .columns > section:nth-child(2) { display: none; }
 .columns { grid-template-columns: 1fr; }
 .panel { padding: 20px; margin-bottom: 18px; }

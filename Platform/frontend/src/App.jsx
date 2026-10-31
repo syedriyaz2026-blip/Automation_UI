@@ -887,6 +887,7 @@ function App() {
   const [runReport, setRunReport] = useState(null),
     [apiSyncLoading, setApiSyncLoading] = useState(false),
     [apiSyncResult, setApiSyncResult] = useState(null);
+  const [backgroundStatus, setBackgroundStatus] = useState(null);
   const [credentials, setCredentials] = useState({ ...DEFAULT_DUMMY_CREDENTIALS }),
     [savedCredentials, setSavedCredentials] = useState({ ...DEFAULT_DUMMY_CREDENTIALS }),
     [credentialsEditing, setCredentialsEditing] = useState(false),
@@ -939,6 +940,13 @@ function App() {
   async function loadCompanies() {
     const data = await api("/api/v1/source/companies");
     setCompanies(data.companies || []);
+  }
+  async function loadBackgroundStatus() {
+    try {
+      setBackgroundStatus(await api("/api/v1/background/status"));
+    } catch (error) {
+      setBackgroundStatus({ enabled: false, last_error: message(error), scopes: [] });
+    }
   }
   async function loadDeputedCompanies(id) {
     if (!id) return setDeputedCompanies([]);
@@ -1123,6 +1131,12 @@ function App() {
   useEffect(() => {
     if (user) loadCompanies().catch((error) => setNotice(message(error)));
   }, [user]);
+  useEffect(() => {
+    if (!user || !can("monitoring.view")) return undefined;
+    loadBackgroundStatus();
+    const timer = window.setInterval(loadBackgroundStatus, 15000);
+    return () => window.clearInterval(timer);
+  }, [user, role, permissions]);
   useEffect(() => {
     if (!scopeApplied || !companyId || (!deputedCompanyId && deputedCompanies.length > 0) || !user) {
       setIntakeSettings({ ...DEFAULT_INTAKE_SETTINGS });
@@ -2433,6 +2447,26 @@ function App() {
                 Choose the Company and Deputed Company above to access {activeModule || "statutory"} operations.
               </span>
             </div>
+          )}
+          {backgroundStatus && can("monitoring.view") && (
+            <section className="panel background-monitor-panel" aria-label="Background source monitoring">
+              <div className="panel-heading">
+                <div>
+                  <span className="section-kicker">Continuous monitoring</span>
+                  <h2>Source synchronization health</h2>
+                  <p>PF and ESI records are fetched and validated in the background. Portal processing is disabled.</p>
+                </div>
+                <Status tone={backgroundStatus.last_error ? "red" : backgroundStatus.running ? "green" : "purple"}>
+                  {backgroundStatus.last_error ? "Attention" : backgroundStatus.running ? "Running" : "Stopped"}
+                </Status>
+              </div>
+              <div className="background-monitor-summary">
+                <span><strong>{backgroundStatus.scopes?.length || 0}</strong> scopes monitored</span>
+                <span><strong>{backgroundStatus.interval_seconds || 0}s</strong> sync interval</span>
+                <span><strong>{backgroundStatus.last_cycle ? new Date(backgroundStatus.last_cycle).toLocaleString() : "Not yet"}</strong> last cycle</span>
+              </div>
+              {backgroundStatus.last_error && <div className="inline-error">{backgroundStatus.last_error}</div>}
+            </section>
           )}
           <div className="columns">
             <section>

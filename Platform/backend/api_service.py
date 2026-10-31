@@ -68,6 +68,7 @@ from Platform.backend.rbac import (
 from Platform.backend.scope_intake_settings import get as get_intake_settings
 from Platform.backend.scope_intake_settings import list_for_companies as list_intake_settings
 from Platform.backend.scope_intake_settings import save as save_intake_settings
+from Platform.backend.background_monitor import BackgroundMonitor
 
 
 ROOT = Path(__file__).resolve().parent
@@ -584,6 +585,24 @@ class SourceScheduler:
 
 
 SCHEDULER = SourceScheduler()
+BACKGROUND_MONITOR: BackgroundMonitor | None = None
+
+
+def background_monitor() -> BackgroundMonitor:
+    global BACKGROUND_MONITOR
+    if BACKGROUND_MONITOR is None:
+        BACKGROUND_MONITOR = BackgroundMonitor(SOURCE_DATA, PLATFORM, ESI_SOURCE_DATA, ESI_STORE, ROOT)
+    return BACKGROUND_MONITOR
+
+
+def background_status() -> dict[str, Any]:
+    if BACKGROUND_MONITOR is None:
+        return {"enabled": False, "running": False, "interval_seconds": 0, "portal_processing": False, "last_cycle": "", "last_error": "Monitor is not enabled in this process.", "scopes": []}
+    return BACKGROUND_MONITOR.status()
+
+
+if os.getenv("EPFO_BACKGROUND_MONITOR_START", "false").strip().lower() in {"1", "true", "yes", "on"}:
+    background_monitor()
 EPFO_RUNS_ENABLED = os.getenv("PF_EPFO_RUNS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
 AUTO_PROCESS_ENABLED = EPFO_RUNS_ENABLED and os.getenv("PF_AUTO_PROCESS_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 AUTO_PROCESS_LOCKS: dict[str, threading.Lock] = {}
@@ -1331,7 +1350,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"authenticated": bool(identity), "username": identity.get("sub", "") if identity else "", "display_name": identity.get("display_name", "") if identity else "", "roles": identity.get("roles", []) if identity else [], "company_ids": identity.get("company_ids", []) if identity else [], "permissions": identity.get("permissions", []) if identity else [], "module_access": identity.get("module_access", []) if identity else []})
         if path == "/health":
             config_report = validate_configuration()
-            return self._json({"status": "ok" if config_report["valid"] else "degraded", "service": "epfo-api-local", "local_only": True, "storage_backend": "filesystem", "external_blob_storage": False, "configuration_valid": config_report["valid"], "configuration_errors": len(config_report["errors"])})
+            return self._json({"status": "ok" if config_report["valid"] else "degraded", "service": "epfo-api-local", "local_only": True, "storage_backend": "filesystem", "external_blob_storage": False, "configuration_valid": config_report["valid"], "configuration_errors": len(config_report["errors"]), "background_monitor": background_status()})
         if not self._authorized():
             return self._json(error_response("UNAUTHORIZED", "A valid JWT bearer token or configured API key is required."), 401)
         if path == "/api/v1/esi/template":
@@ -1756,6 +1775,10 @@ class Handler(BaseHTTPRequestHandler):
             if not self._authorized():
                 return self._json({"error": "Authentication required"}, 401)
             return self._json({"schedules": SCHEDULER.list()})
+        if path == "/api/v1/background/status":
+            if not self._require_access(permissions=("monitoring.view",)):
+                return
+            return self._json(background_status())
         if path == "/api/v1/inbox":
             if not self._require_module("PF"):
                 return

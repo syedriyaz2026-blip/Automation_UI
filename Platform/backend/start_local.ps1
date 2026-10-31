@@ -5,6 +5,7 @@ $backend = Join-Path $workspace 'backend'
 $frontend = Join-Path $workspace 'frontend'
 $apiPort = 8792
 $env:EPFO_API_PORT = [string]$apiPort
+$env:EPFO_BACKGROUND_MONITOR_START = 'true'
 $sourceEnv = Join-Path $backend 'config\source_data.env'
 if (Test-Path -LiteralPath $sourceEnv) {
   foreach ($line in Get-Content -LiteralPath $sourceEnv) {
