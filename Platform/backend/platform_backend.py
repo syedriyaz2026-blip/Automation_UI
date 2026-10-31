@@ -197,14 +197,16 @@ class CompanyPlatform:
     def _dedupe_key(item: dict[str, Any]) -> tuple[str, str, str]:
         """Return a stable identity within one company/deputed-company scope.
 
-        UAN is the strongest identity. Employee code is the fallback used by
-        employers that have not populated UAN yet. A deterministic fingerprint
-        is used for incomplete rows so repeated invalid input cannot create an
-        unbounded collection of identical records.
+        The source employee ID is strongest, followed by UAN and employee
+        code. A deterministic fingerprint is used for incomplete rows so
+        repeated invalid input cannot create an unbounded collection.
         """
         deputed_company_id = value(item.get("deputed_company_id"))
+        source_employee_id = _identity_text(item.get("source_employee_id") or item.get("employee_id"))
         uan = _digits(item.get("uan"))
         emp_code = _identity_text(item.get("emp_code"))
+        if source_employee_id:
+            return (deputed_company_id, "source_employee_id", source_employee_id)
         if uan:
             return (deputed_company_id, "uan", uan)
         if emp_code:
@@ -291,6 +293,9 @@ class CompanyPlatform:
             or raw.get("deputed_company")
             or raw.get("deputed_company_name")
             or cfg.get("deputed_company_name", "")
+        )
+        record["source_employee_id"] = value(
+            raw.get("source_employee_id") or raw.get("employee_id") or raw.get("EmployeeId")
         )
         record["row_number"] = value(raw.get("row_number") or raw.get("source_row") or raw.get("sl_no") or index + 1)
         record["record_id"] = value(raw.get("record_id")) or str(uuid.uuid4())

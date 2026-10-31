@@ -178,6 +178,24 @@ def test_changed_success_payload_enters_update_review_until_approved(tmp_path, m
     assert "pending_update" not in approved
 
 
+def test_source_employee_id_keeps_identity_when_uan_or_employee_code_changes(tmp_path, monkeypatch):
+    monkeypatch.setattr(platform_backend, "INBOX_ROOT", tmp_path)
+    monkeypatch.setattr(platform_backend, "AUDIT_LOG_PATH", tmp_path / "audit.jsonl")
+    platform = platform_backend.CompanyPlatform()
+    first = dict(VALID, employee_id="EMP-100", uan="100000000001", emp_code="E-1")
+    changed = dict(VALID, employee_id="EMP-100", uan="100000000002", emp_code="E-2", name="Updated Employee")
+    platform.ingest("37", [first], source="emanage_background", deputed_company_id="3361")
+    record = platform.records("37", deputed_company_id="3361")[0]
+    platform.update_status("37", record["record_id"], "Registered - Pending Approval", run_id="RUN-OK", message="Accepted")
+    result = platform.ingest("37", [changed], source="emanage_background", deputed_company_id="3361")
+    rows = platform.records("37", deputed_company_id="3361")
+    assert result["created"] == 0
+    assert result["update_review"] == 1
+    assert len(rows) == 1
+    assert rows[0]["source_employee_id"] == "EMP-100"
+    assert rows[0]["pending_update"]["uan"] == "100000000002"
+
+
 def test_restart_marks_reserved_rows_for_recovery_without_overwriting_success(tmp_path, monkeypatch):
     inbox_root = tmp_path / "inbox"
     run_root = tmp_path / "runs"

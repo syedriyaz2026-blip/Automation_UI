@@ -2345,6 +2345,7 @@ class Handler(BaseHTTPRequestHandler):
                     raw = {
                         **fields,
                         "record_id": f"source-{item.get('employee_id') or item.get('employee_code') or index}",
+                        "source_employee_id": item.get("employee_id", ""),
                         "source_row": index,
                         "emp_code": item.get("employee_code", ""),
                         "employee_code": item.get("employee_code", ""),
