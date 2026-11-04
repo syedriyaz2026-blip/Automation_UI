@@ -795,6 +795,21 @@ class CompleteEmployeeDataService:
         self.database = database or ReadOnlyDatabase()
         self.api = api or EmanageApi()
 
+    @staticmethod
+    def _local_path() -> str:
+        return os.getenv("PF_LOCAL_DATA_FILE", "").strip()
+
+    def _local_payload(self) -> dict[str, Any]:
+        path = self._local_path()
+        try:
+            with open(path, encoding="utf-8") as handle:
+                value = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SourceDataError(f"Configured local PF data file cannot be read: {exc}") from exc
+        if not isinstance(value, dict):
+            raise SourceDataError("Local PF data file must contain an object.")
+        return value
+
     def status(self) -> dict[str, Any]:
         return {
             "read_only": True,
@@ -806,6 +821,9 @@ class CompleteEmployeeDataService:
         }
 
     def companies(self) -> dict[str, Any]:
+        if self._local_path():
+            payload = self._local_payload()
+            return {"companies": payload.get("companies", []), "source": "local_json", "read_only": True, "warnings": []}
         warnings: list[str] = []
         # The supplied Emanage portal uses the same SQL company master that
         # scopes employee data. Prefer it so the selector and queue cannot
@@ -826,6 +844,10 @@ class CompleteEmployeeDataService:
         raise SourceDataError("No company source is configured.")
 
     def deputed_companies(self, company_id: int) -> dict[str, Any]:
+        if self._local_path():
+            payload = self._local_payload()
+            items = [item for item in payload.get("deputed_companies", []) if str(item.get("company_id")) == str(company_id)]
+            return {"company_id": str(company_id), "deputed_companies": items, "source": "local_json", "read_only": True, "warnings": []}
         warnings: list[str] = []
         if self.database.configured:
             try:
@@ -852,6 +874,8 @@ class CompleteEmployeeDataService:
         joined_since: datetime | None = None,
         recent_joining_only: bool = False,
     ) -> dict[str, Any]:
+        if self._local_path():
+            return self._complete_local(company_id, deputed_company_id, employee_code, limit, offset)
         limit = min(max(int(limit), 1), 5000)
         offset = max(int(offset), 0)
         warnings: list[str] = []
@@ -1038,8 +1062,23 @@ class CompleteEmployeeDataService:
             "queried_at": _now(),
             "updated_since": updated_since.isoformat() if updated_since else None,
             "joining_window_hours": RECENT_JOINING_WINDOW_HOURS,
-            "joined_since": joining_cutoff.isoformat(timespec="seconds"),
+            "joined_since": joining_cutoff.isoformat(timespec="seconds") if joining_cutoff else None,
         }
+
+    def _complete_local(self, company_id: int, deputed_company_id: int | None, employee_code: str, limit: int, offset: int) -> dict[str, Any]:
+        payload = self._local_payload()
+        rows = [row for row in payload.get("employees", []) if str(row.get("company_id")) == str(company_id)]
+        if deputed_company_id not in (None, 0):
+            rows = [row for row in rows if str(row.get("deputed_company_id")) == str(deputed_company_id)]
+        if employee_code:
+            rows = [row for row in rows if str(row.get("employee_code", "")).lower() == employee_code.lower()]
+        rows = rows[offset:offset + limit]
+        records = []
+        for index, row in enumerate(rows, start=offset + 1):
+            fields = {field: _canonical_pf_field(field, row.get(field)) for field in ("uan", "aadhaar", "name", "dob", "doj", "basic_wage")}
+            errors = [item for item in validate_record_all({"row_number": index, **fields}) if item.get("column") in PF_REQUIRED_FIELD_LABELS]
+            records.append({"employee_id": row.get("employee_id"), "employee_code": _text(row.get("employee_code")), "company_id": str(company_id), "deputed_company_id": str(row.get("deputed_company_id", "")), "fields": fields, "raw_fields": fields, "conversion": {"status": "CONVERTED", "date_format": "DD-MM-YYYY", "validated": not errors, "errors": errors}, "missing_required_fields": [key for key, value in fields.items() if value in (None, "")], "ready_for_pf_intake": not errors and all(value not in (None, "") for value in fields.values()), "extra": {key: value for key, value in row.items() if key not in fields}})
+        return {"company_id": str(company_id), "deputed_company_id": str(deputed_company_id or ""), "required_fields": [{"key": key, "label": label, "required": True} for key, label in PF_REQUIRED_FIELD_LABELS.items()], "records": records, "count": len(records), "pagination": {"offset": offset, "limit": limit, "has_more": len(records) == limit}, "read_only": True, "sources": {"employee_pf": "local_json"}, "warnings": [], "queried_at": _now(), "joining_window_hours": None, "joined_since": None}
 
 
 SOURCE_DATA = CompleteEmployeeDataService()

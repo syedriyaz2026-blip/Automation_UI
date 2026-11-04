@@ -1,8 +1,8 @@
 """Continuous read-only source monitoring for PF and ESI.
 
-This worker discovers Emanage scopes, fetches source records, validates and
-stores them in the local monitoring inbox, and persists a per-scope health
-snapshot. It never starts EPFO or ESIC portal automation.
+This worker discovers Emanage scopes, fetches PF source records, validates and
+stores them in the local monitoring inbox, and optionally hands eligible PF
+records to the existing automatic run coordinator.
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ class BackgroundMonitor:
                 "enabled": self._enabled(),
                 "running": self.thread.is_alive(),
                 "interval_seconds": self.interval_seconds,
-                "portal_processing": False,
+                "portal_processing": os.getenv("PF_BACKGROUND_AUTO_PROCESS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"},
                 "last_cycle": self.state.get("service", {}).get("last_cycle", ""),
                 "last_error": self.state.get("service", {}).get("last_error", ""),
                 "scopes": list(self.state.get("scopes", {}).values()),
@@ -121,6 +121,10 @@ class BackgroundMonitor:
             return
         cycle_started = _now()
         try:
+            # A source-mode change (for example local fixture -> SQL) must not
+            # leave scopes from the previous source visible in monitoring.
+            with self.lock:
+                self.state["scopes"] = {}
             companies = self.source_data.companies().get("companies", [])
             for company in companies:
                 deputed = self.source_data.deputed_companies(int(company["id"])).get("deputed_companies", [])
@@ -129,6 +133,13 @@ class BackgroundMonitor:
                     key = f"{company['id']}:{child.get('id', '')}"
                     try:
                         pf = self._sync_pf(company, child)
+                        automatic = None
+                        if os.getenv("PF_BACKGROUND_AUTO_PROCESS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}:
+                            # Import lazily to avoid the api_service/background
+                            # monitor import cycle during service startup.
+                            from Platform.backend.api_service import auto_process_company
+                            automatic = auto_process_company(str(company["id"]), str(child.get("id", "")))
+                            pf["automatic"] = automatic
                         esi = self._sync_esi(company, child)
                         self._set_scope(key, company_id=str(company["id"]), company_name=company.get("name", ""), deputed_company_id=str(child.get("id", "")), deputed_company_name=child.get("name", ""), last_success=cycle_started, last_error="", pf=pf, esi=esi)
                     except Exception as exc:

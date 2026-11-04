@@ -6,6 +6,9 @@ $frontend = Join-Path $workspace 'frontend'
 $apiPort = 8792
 $env:EPFO_API_PORT = [string]$apiPort
 $env:EPFO_BACKGROUND_MONITOR_START = 'true'
+$env:PF_EPFO_RUNS_ENABLED = 'true'
+$env:PF_AUTO_PROCESS_ENABLED = 'true'
+$env:PF_BACKGROUND_AUTO_PROCESS_ENABLED = 'true'
 $sourceEnv = Join-Path $backend 'config\source_data.env'
 if (Test-Path -LiteralPath $sourceEnv) {
   foreach ($line in Get-Content -LiteralPath $sourceEnv) {
@@ -13,6 +16,11 @@ if (Test-Path -LiteralPath $sourceEnv) {
       [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2])
     }
   }
+}
+if ($env:LOCAL_SOURCE_MODE -eq 'true') {
+  $env:PF_LOCAL_DATA_FILE = Join-Path $projectRoot 'Platform\backend\config\pf_local_sample.json'
+  $env:ESI_LOCAL_DATA_FILE = Join-Path $projectRoot 'ESIC\backend\sample_data\esi_local_sample.json'
+  $env:ESI_RECENT_JOINING_ONLY = 'false'
 }
 function Stop-LocalProcess([string]$pattern) {
   $targets = Get-CimInstance Win32_Process | Where-Object {

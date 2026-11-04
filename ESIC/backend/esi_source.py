@@ -8,6 +8,7 @@ ESIC account fields) and therefore needs its own source boundary.
 from __future__ import annotations
 
 import os
+import json
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -26,7 +27,30 @@ class EsiSourceDataService:
 
     @property
     def configured(self) -> bool:
-        return bool(self.api.configured and os.getenv("EMANAGE_ESI_EMPLOYEE_ROUTE", "").strip())
+        return bool(self._local_path() or (self.api.configured and os.getenv("EMANAGE_ESI_EMPLOYEE_ROUTE", "").strip()))
+
+    @staticmethod
+    def _local_path() -> str:
+        return os.getenv("ESI_LOCAL_DATA_FILE", "").strip()
+
+    def _fetch_local(self, company_id: int, deputed_company_id: int, limit: int, offset: int) -> list[dict[str, Any]]:
+        path = self._local_path()
+        try:
+            with open(path, encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise SourceDataError(f"Configured local ESI data file cannot be read: {exc}") from exc
+        rows = payload.get("records", payload) if isinstance(payload, dict) else payload
+        if not isinstance(rows, list):
+            raise SourceDataError("Local ESI data file must contain a JSON array or a records array.")
+        selected = []
+        for item in rows:
+            if not isinstance(item, dict) or str(item.get("company_id", company_id)) != str(company_id):
+                continue
+            if str(deputed_company_id) not in {"0", ""} and str(item.get("deputed_company_id", "")) != str(deputed_company_id):
+                continue
+            selected.append(dict(item))
+        return selected[offset:offset + max(1, min(limit, 5000))]
 
     def status(self) -> dict[str, Any]:
         return {
@@ -71,14 +95,15 @@ class EsiSourceDataService:
         limit: int = 500,
         offset: int = 0,
     ) -> dict[str, Any]:
-        if not self.api.configured:
+        if not self.api.configured and not self._local_path():
             raise SourceDataError("EMANAGE_API_BASE_URL is not configured.")
         route = os.getenv("EMANAGE_ESI_EMPLOYEE_ROUTE", "").strip()
-        if not route:
+        if not route and not self._local_path():
             raise SourceDataError(
                 "EMANAGE_ESI_EMPLOYEE_ROUTE is not configured; ESI employee data cannot be fetched safely."
             )
 
+        local_mode = bool(self._local_path())
         if client_id not in (None, ""):
             try:
                 resolved_client_id = int(str(client_id).strip())
@@ -86,15 +111,13 @@ class EsiSourceDataService:
                 raise SourceDataError("ESI client_id must be a positive integer.") from exc
             if resolved_client_id <= 0:
                 raise SourceDataError("ESI client_id must be a positive integer.")
+        elif local_mode:
+            resolved_client_id = company_id
         else:
             resolved_client_id = self.api.client_id(company_id) or company_id
-        rows = self.api.employee_esi_details(
-            company_id,
-            deputed_company_id,
-            client_id=resolved_client_id,
-            employee_code=employee_code,
-            limit=limit,
-            offset=offset,
+        rows = self._fetch_local(company_id, deputed_company_id, limit, offset) if local_mode else self.api.employee_esi_details(
+            company_id, deputed_company_id, client_id=resolved_client_id,
+            employee_code=employee_code, limit=limit, offset=offset,
         )
         warnings: list[str] = []
         cutoff = datetime.now().replace(tzinfo=None) - timedelta(hours=self._joining_window_hours())
@@ -122,11 +145,11 @@ class EsiSourceDataService:
             "records": selected,
             "count": len(selected),
             "source": "emanage_api.ESI",
-            "route": route,
+            "route": "local_json" if local_mode else route,
             "client_id": str(resolved_client_id),
             "queried_at": _now(),
             "warnings": warnings,
-            "sources": {"employee_api": route, "contract": "ESIC empData.json"},
+            "sources": {"employee_api": "local_json" if local_mode else route, "contract": "ESIC empData.json"},
             "joining_window_hours": self._joining_window_hours() if self._recent_only() else None,
             "excluded_outside_window": excluded,
         }

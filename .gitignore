@@ -39,5 +39,6 @@ _esic1_audit/
 **/.env.*
 !.env.example
 !**/*.env.example
+**/uat_pf.env
 Platform/backend/background_sync_state.json
 emanageadminapi-netcore/

@@ -1,0 +1,5 @@
+{
+  "companies": [{"id": "1001", "company_id": "1001", "name": "Sample Manufacturing Private Limited", "code": "SAMPLE", "scope_type": "company"}],
+  "deputed_companies": [{"id": "2001", "company_id": "1001", "deputed_company_id": "2001", "name": "Sample Manufacturing Private Limited", "code": "SAMPLE", "scope_type": "deputed_company"}],
+  "employees": [{"employee_id": "PF-SAMPLE-001", "employee_code": "PF-SAMPLE-001", "company_id": "1001", "deputed_company_id": "2001", "name": "Sample Employee", "uan": "100000000001", "aadhaar": "999999999999", "dob": "15-09-1992", "doj": "30-10-2026", "basic_wage": "18600", "father_name": "Sample Father", "gender": "Male", "mobile": "9999999999", "location": "Bengaluru"}]
+}

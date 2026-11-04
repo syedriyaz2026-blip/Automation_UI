@@ -1,0 +1,19 @@
+{
+  "records": [
+    {
+      "company_id": "1001", "deputed_company_id": "2001", "client_id": "1001",
+      "client_name": "Sample Manufacturing Private Limited", "employee_code": "ESI-SAMPLE-001",
+      "name": "Sample Employee", "dob": "15-09-1992", "gender": "Male", "doj": "30-10-2026",
+      "aadhaar": "999999999999", "mobile": "9999999999", "father_name": "Sample Father",
+      "marital_status": "Unmarried", "present_address": "1 Sample Street", "present_state": "Karnataka",
+      "present_district": "Bengaluru Urban", "present_pincode": "560001", "permanent_address": "1 Sample Street",
+      "permanent_state": "Karnataka", "permanent_district": "Bengaluru Urban", "permanent_pincode": "560001",
+      "nominee_name": "Sample Nominee", "nominee_relation": "Mother", "nominee_address": "1 Sample Street",
+      "nominee_state": "Karnataka", "nominee_district": "Bengaluru Urban", "nominee_pincode": "560001",
+      "dispensary_state": "Karnataka", "dispensary_district": "Bengaluru Urban", "dispensary_name": "Sample Dispensary",
+      "family_dispensary_state": "Karnataka", "family_dispensary_district": "Bengaluru Urban", "family_dispensary_name": "Sample Family Dispensary",
+      "bank_account": "000000000001", "bank_ifsc": "SBIN0000001", "bank_account_type": "Savings",
+      "consent": "Yes", "job_location": "Bengaluru", "remarks": "LOCAL SAMPLE ONLY"
+    }
+  ]
+}
